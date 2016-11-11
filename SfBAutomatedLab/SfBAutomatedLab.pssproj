@@ -30,7 +30,6 @@
   <ItemGroup>
     <Compile Include="SfBAutomatedLab.psd1" />
     <Compile Include="SfBAutomatedLab.psm1" />
-    <Compile Include="SfBAutomatedLab.tests.ps1" />
     <Compile Include="SfBAutomatedLabTopology.psm1" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />

@@ -213,9 +213,33 @@ function Get-SfBMachineRoleString
     {
         $roleString += 'SqlServer2014'
     }
+    
+    if ($Machine.DomainRole -eq 'RootDC')
+    {
+        $roleString += 'RootDC'
+    }    
+    elseif ($Machine.DomainRole -eq 'DC')
+    {
+        $roleString += 'DC'
+    }
 
     if ($roleString)
     {
         ' -Roles ' + ($roleString -join ', ')
+    }
+}
+
+function Get-SfBTopologyClusterService
+{
+    param(
+        [Parameter(Mandatory, ValueFromPipeline)]
+        [PSObject]$Cluster
+    )
+    
+    process
+    {
+        $xPath = '//tp:TopologyBuilder/tp:NewTopology/wt:PartialTopology/wt:Services/wt:Service[@InstalledOn = "{0}"]' -f $Cluster.UniqueId
+        
+        $tp | Select-Xml -XPath $xPath -Namespace $ns | Select-Object -ExpandProperty Node
     }
 }

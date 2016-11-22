@@ -23,7 +23,7 @@ function Start-SfBLabDeployment
         return
     }
 
-    $script = New-SfBLab -Path $TopologyFilePath -LabName $LabName
+    $script = New-SfBLab -TopologyFilePath $TopologyFilePath -LabName $LabName
     
     $scriptPath = '{0}\{1}.ps1' -f (Get-LabSourcesLocation), $LabName
     Write-Host "Saving the AutomatedLab deployment script to '$scriptPath'"
@@ -52,33 +52,41 @@ function New-SfBLab
     [OutputType([System.Management.Automation.ScriptBlock])]
     param(
         [Parameter(Mandatory)]
-        [string]$Path,
+        [string]$TopologyFilePath,
 
         [Parameter(Mandatory)]
-        [string]$LabName
+        [string]$LabName,
+        
+        [switch]$ExportOnly
     )
 
-    if (-not (Test-Path -Path $Path))
+    if (-not (Test-Path -Path $TopologyFilePath))
     {
-        Write-Error "The file '$Path' could not be found"
+        Write-Error "The file '$TopologyFilePath' could not be found"
         return
     }
-
-    Import-SfBTopology -Path $Path -ErrorAction Stop
+    
+    Write-Host '-------------------------------------------------------------'
+    Write-Host "Importing S4B topoligy file '$TopologyFilePath'"
+    Write-Host '-------------------------------------------------------------'
+    
+    Import-SfBTopology -Path $TopologyFilePath -ErrorAction Stop
     $script:labName = $LabName
     $script:discoveredNetworks = @()
     
     $script:sb = New-Object System.Text.StringBuilder
+    
+    $script:machines = New-Object System.Collections.ArrayList
+    $machines.AddRange((Get-SfBTopologyCluster | Get-SfBTopologyMachine))
     
     Add-SfBLabFundamentals
     
     Add-SfBLabInternalNetworks
     Add-SfBLabExternalNetworks
     
-    Add-SfBLabDomains
-       
-
-    $machines = Get-SfBTopologyCluster | Get-SfBTopologyMachine
+    Add-SfBLabDomains    
+    
+    Write-Host "Found $($machines.Count) machines in the topology file"
     foreach ($machine in $machines)
     {        
         $name = if ($machine.Fqdn) { $machine.Fqdn } else { $machine.ClusterFqdn }
@@ -90,7 +98,15 @@ function New-SfBLab
 
         $roles = $machine | Get-SfBMachineRoleString
 
-        Write-Host "Adding machine '$($machine.Fqdn)' with roles '$roles'" 
+        if ($roles)
+        {
+            Write-Host ">> Adding machine '$($machine.Fqdn)' with roles '$roles'" 
+        }
+        else
+        {
+            Write-Host ">> Adding machine '$($machine.Fqdn)'" 
+        }
+        
         
         $netInterfaces = @()
         $machine.NetInterface | Where-Object InterfaceSide -in 'Primary', 'Internal' | ForEach-Object { $netInterfaces += $_ }
@@ -148,23 +164,46 @@ function New-SfBLab
                 
                 $sb.AppendLine($line) | Out-Null
             }
-            $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -NetworkAdapter $netAdapter -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER"' -f $name, $domain, $roles
             
+            $cluster = Get-SfBTopologyCluster -Id $machine.ClusterUniqueId | Get-SfBTopologyClusterService
+            if ($cluster.RoleName -contains 'EdgeServer')
+            {
+                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -NetworkAdapter $netAdapter -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER"' -f $name, $domain, $roles
+            }
+            else
+            {
+                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -NetworkAdapter $netAdapter -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER"' -f $name, $domain, $roles
+            }
         }
         else
         {
-            $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER"' -f $name, $domain, $roles
+            if ($cluster.RoleName -contains 'EdgeServer')
+            {
+                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER"' -f $name, $domain, $roles
+            }
+            else
+            {
+                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER"' -f $name, $domain, $roles
+            }
         }
         $sb.AppendLine($line ) | Out-Null
         $sb.AppendLine() | Out-Null
     }
+    Write-Host
 
-    $sb.AppendLine('Install-Lab') | Out-Null
+    if ($ExportOnly)
+    {
+        $sb.AppendLine('Export-LabDefinition -Force') | Out-Null
+    }
+    else
+    {
+        $sb.AppendLine('Install-Lab') | Out-Null
     
-    $sb.AppendLine('Add-SfbClusterDnsRecords') | Out-Null
-    $sb.AppendLine('Add-SfbFileShares') | Out-Null    
+        $sb.AppendLine('Add-SfbClusterDnsRecords') | Out-Null
+        $sb.AppendLine('Add-SfbFileShares') | Out-Null    
     
-    $sb.AppendLine('Show-LabInstallationTime') | Out-Null
+        $sb.AppendLine('Show-LabInstallationTime') | Out-Null
+    }
 
     [scriptblock]::Create($sb.ToString())
 }
@@ -183,7 +222,7 @@ function Add-SfBLabInternalNetworks
         {
             if ([AutomatedLab.IPNetwork]::Contains($discoveredInternalNetwork, [AutomatedLab.IPAddress]$internalIp.IPAddress))
             {
-                Write-Host "Assigning prefix $($discoveredInternalNetwork.Cidr ) to IP address $($internalIp.IPAddress)"
+                Write-Host ">> Assigning prefix $($discoveredInternalNetwork.Cidr ) to IP address $($internalIp.IPAddress)"
                 $internalIp.Prefix = $discoveredInternalNetwork.Cidr 
             }
         }
@@ -196,6 +235,8 @@ function Add-SfBLabInternalNetworks
 
         [AutomatedLab.IPNetwork]"$($internalIp.IPAddress)/$($internalIp.Prefix)"
     }
+    
+    Write-Host
 
     $internalNetworks = $internalNetworks | Sort-Object -Property Network -Unique
 
@@ -208,12 +249,13 @@ function Add-SfBLabInternalNetworks
     $i = 1
     foreach ($network in $internalNetworks)
     {
-        Write-Host ("'{0}-{1}'. The host adapter's IP is {2}/{3}" -f $labName, $i, $network.Network, $network.Cidr)
+        Write-Host (">> '{0}-{1}'. The host adapter's IP is {2}/{3}" -f $labName, $i, $network.Network, $network.Cidr)
         $line = '$internal = Add-LabVirtualNetworkDefinition -Name {0}-{1} -AddressSpace {2}/{3} -PassThru' -f $labName, $i, $network.Network, $network.Cidr
         $sb.AppendLine($line) | Out-Null
     }
     
     $sb.AppendLine() | Out-Null
+    Write-Host
 }
 
 function Add-SfBLabExternalNetworks
@@ -234,7 +276,7 @@ function Add-SfBLabExternalNetworks
         {
             if ([AutomatedLab.IPNetwork]::Contains($discoveredExternalNetwork, [AutomatedLab.IPAddress]$externalIp.IPAddress))
             {
-                Write-Host "Assigning prefix $($discoveredExternalNetwork.Cidr ) to IP address $($externalIp.IPAddress)"
+                Write-Host ">> Assigning prefix $($discoveredExternalNetwork.Cidr ) to IP address $($externalIp.IPAddress)"
                 $externalIp.Prefix = $discoveredExternalNetwork.Cidr
             }
         }
@@ -245,6 +287,8 @@ function Add-SfBLabExternalNetworks
             $script:discoveredNetworks += [AutomatedLab.IPNetwork]"$($externalIp.IPAddress)/$($externalIp.Prefix)"
         }
     }
+    
+    Write-Host
 
     if ($hasExternalNetworks -and $externalSwitches)
     {
@@ -324,11 +368,12 @@ function Add-SfBLabDomains
     
     foreach ($domain in $domains)
     {
-        Write-Host "Setting default installation credentials for domain '$($domain)' machines"
+        Write-Host "Setting default installation credentials for domain '$($domain)' machines to user 'Install' with password 'Somepass1'"
         $line = 'Add-LabDomainDefinition -Name {0} -AdminUser Install -AdminPassword Somepass1' -f $domain
         $sb.AppendLine($line) | Out-Null
     }
 
+    Write-Host
     $i = 1
     foreach ($domain in $domains)
     {
@@ -336,20 +381,34 @@ function Add-SfBLabDomains
 
 
         Write-Host "Adding domain controller 'DC$i' to domain $($domain)"
-        $line = 'Add-LabMachineDefinition -Name DC{1} -Memory 512MB -Network $internal -DomainName {0} -Roles RootDC -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER"' -f $domain, $i
-        $sb.AppendLine($line) | Out-Null
+        #$line = 'Add-LabMachineDefinition -Name DC{1} -Memory 512MB -Network $internal -DomainName {0} -Roles RootDC -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER"' -f $domain, $i
+        #$sb.AppendLine($line) | Out-Null
         $i++
-
-        if ($numberOfDcs -gt 1)
+        
+        $fqdn = 'DC1.domain.local'
+        $machine = $machines | Where-Object FQDN -eq $fqdn
+        if ($machine)
         {
-            2..$numberOfDcs | ForEach-Object {
+            $machine | Add-Member -Name DomainRole -MemberType NoteProperty -Value RootDC
+        }
+        else
+        {
+            $machine = New-Object PSObject -Property @{ DomainRole = 'RootDC'; FQDN = $fqdn }
+            $machines.Add($machine)
+        }
+
+        <#if ($numberOfDcs -gt 1)
+                {
+                2..$numberOfDcs | ForEach-Object {
                 Write-Host "Adding domain controller 'DC$i' to domain $($domain)"
                 $line = 'Add-LabMachineDefinition -Name DC{1} -Memory 512MB -Network $internal -DomainName {0} -Roles DC -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER"' -f $domain, $i
                 $sb.AppendLine($line) | Out-Null
                 $i++
-            }
-        }
+                }
+        }#>
     }
+    
+    Write-Host
 }
 
 function Add-SfBLabFundamentals
@@ -360,11 +419,11 @@ function Add-SfBLabFundamentals
     $sb.AppendLine('New-LabDefinition -Name $labName -DefaultVirtualizationEngine HyperV') | Out-Null
     $sb.AppendLine('Add-LabIsoImageDefinition -Name SQLServer2014 -Path $labSources\ISOs\en_sql_server_2014_standard_edition_x64_dvd_3932034.iso') | Out-Null
 
-    
-
-    Write-Host 'Setting default installation credentials for machines'
+    Write-Host "Setting default installation credentials for machines to user 'Install' with password 'Somepass1'"
     $sb.AppendLine('Set-LabInstallationCredential -Username Install -Password Somepass1') | Out-Null
     $sb.AppendLine() | Out-Null
+    
+    Write-Host
 }
 
 function Add-SfBClusterDnsRecords

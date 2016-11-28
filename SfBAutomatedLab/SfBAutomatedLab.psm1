@@ -417,7 +417,7 @@ function Add-SfBLabFundamentals
     $sb.AppendLine('$labSources = Get-LabSourcesLocation') | Out-Null
 
     $sb.AppendLine('New-LabDefinition -Name $labName -DefaultVirtualizationEngine HyperV') | Out-Null
-    $sb.AppendLine('Add-LabIsoImageDefinition -Name SQLServer2014 -Path $labSources\ISOs\en_sql_server_2014_standard_edition_x64_dvd_3932034.iso') | Out-Null
+    $sb.AppendLine('Add-LabIsoImageDefinition -Name SQLServer2014 -Path $labSources\ISOs\en_sql_server_2014_standard_edition_with_service_pack_2_x64_dvd_8961564.iso') | Out-Null
 
     Write-Host "Setting default installation credentials for machines to user 'Install' with password 'Somepass1'"
     $sb.AppendLine('Set-LabInstallationCredential -Username Install -Password Somepass1') | Out-Null

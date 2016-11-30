@@ -57,7 +57,12 @@ function New-SfBLab
         [Parameter(Mandatory)]
         [string]$LabName,
         
-        [switch]$ExportOnly
+        [Parameter(Mandatory)]
+        [string]$OutputScriptPath,
+        
+        [switch]$ExportOnly,
+        
+        [switch]$PassThru
     )
 
     if (-not (Test-Path -Path $TopologyFilePath))
@@ -67,7 +72,7 @@ function New-SfBLab
     }
     
     Write-Host '-------------------------------------------------------------'
-    Write-Host "Importing S4B topoligy file '$TopologyFilePath'"
+    Write-Host "Importing SfB topoligy file '$TopologyFilePath'"
     Write-Host '-------------------------------------------------------------'
     
     Import-SfBTopology -Path $TopologyFilePath -ErrorAction Stop
@@ -165,25 +170,24 @@ function New-SfBLab
                 $sb.AppendLine($line) | Out-Null
             }
             
-            $cluster = Get-SfBTopologyCluster -Id $machine.ClusterUniqueId | Get-SfBTopologyClusterService
-            if ($cluster.RoleName -contains 'EdgeServer')
+            if (($machine.Roles -band [SfBAutomatedLab.SfBServerRole]::Edge) -eq [SfBAutomatedLab.SfBServerRole]::Edge)
             {
-                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -NetworkAdapter $netAdapter -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER"' -f $name, $domain, $roles
+                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -NetworkAdapter $netAdapter -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{1}" }}' -f $name, $machine.Roles
             }
             else
             {
-                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -NetworkAdapter $netAdapter -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER"' -f $name, $domain, $roles
+                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -NetworkAdapter $netAdapter -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRole = "{3}" }}' -f $name, $domain, $roles, $machine.Roles
             }
         }
         else
         {
-            if ($cluster.RoleName -contains 'EdgeServer')
+            if ($machine.IsEdgeServer)
             {
-                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER"' -f $name, $domain, $roles
+                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRole = "{1}" }}' -f $name, $machine.Roles
             }
             else
             {
-                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER"' -f $name, $domain, $roles
+                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRole = "{3}" }}' -f $name, $domain, $roles, $machine.Roles
             }
         }
         $sb.AppendLine($line ) | Out-Null
@@ -205,7 +209,54 @@ function New-SfBLab
         $sb.AppendLine('Show-LabInstallationTime') | Out-Null
     }
 
-    [scriptblock]::Create($sb.ToString())
+    [scriptblock]::Create($sb.ToString()) | Out-File -FilePath $OutputScriptPath -Width 5000
+    $script:scriptFilePath = $OutputScriptPath
+    Write-Host
+    Write-Host "Script for AutomatedLab stored in '$scriptFilePath'"
+    
+    Write-Host
+    Write-Host '############################################################################'
+    Write-Host '# The script to deploy the SfB lab using AutomatedLab is completed         #'
+    Write-Host '# Please alter the script if required and call Invoke-SfBLabScript then    #'
+    Write-Host '# The next steps are:                                                      #'
+    Write-Host '# - Call Invoke-SfBLabScript (this may take one or two hours)              #'
+    Write-Host '# - Call Invoke-SfBLabPostInstallations (this may take an hour)            #'
+    Write-Host '############################################################################'
+    
+    if ($PassThru)
+    {
+        [scriptblock]::Create($sb.ToString())
+    }
+}
+
+function Invoke-SfBLabPostInstallations
+{
+    $labSources = Get-LabSourcesLocation
+    $frontendServers = Get-LabMachine | Where-Object { $_.Notes.SfBRole -like '*FrontEnd*' }
+    $edgeServers = Get-LabMachine | Where-Object { $_.Notes.SfBRole -like '*Edge*' }
+        $wacServers = Get-LabMachine | Where-Object { $_.Notes.SfBRole -like '*WacService*' }
+    
+    Install-LabWindowsFeature -ComputerName $frontendServers -FeatureName NET-Framework-Core, RSAT-ADDS, Windows-Identity-Foundation, Web-Server, Web-Static-Content, Web-Default-Doc, Web-Http-Errors, Web-Dir-Browsing, Web-Asp-Net, Web-Net-Ext, Web-ISAPI-Ext, Web-ISAPI-Filter, Web-Http-Logging, Web-Log-Libraries, Web-Request-Monitor, Web-Http-Tracing, Web-Basic-Auth, Web-Windows-Auth, Web-Client-Auth, Web-Filtering, Web-Stat-Compression, Web-Dyn-Compression, NET-WCF-HTTP-Activation45, Web-Asp-Net45, Web-Mgmt-Tools, Web-Scripting-Tools, Web-Mgmt-Compat, Server-Media-Foundation, BITS
+    Install-LabWindowsFeature -ComputerName $edgeServers -FeatureName RSAT-ADDS, Web-Server, Web-Static-Content, Web-Default-Doc, Web-Http-Errors, Web-Asp-Net, Web-Net-Ext, Web-ISAPI-Ext, Web-ISAPI-Filter, Web-Http-Logging, Web-Log-Libraries, Web-Request-Monitor, Web-Http-Tracing, Web-Basic-Auth, Web-Windows-Auth, Web-Client-Auth, Web-Filtering, Web-Stat-Compression, NET-WCF-HTTP-Activation45, Web-Asp-Net45, Web-Scripting-Tools, Web-Mgmt-Compat, Desktop-Experience, Telnet-Client
+    
+    Install-LabWindowsFeature -ComputerName $wacServers -FeatureName Web-Server, Web-Mgmt-Tools, Web-Mgmt-Console, Web-WebServer, Web-Common-Http, Web-Default-Doc, Web-Static-Content, Web-Performance, Web-Stat-Compression, Web-Dyn-Compression, Web-Security, Web-Filtering, Web-Windows-Auth, Web-App-Dev, Web-Net-Ext45, Web-Asp-Net45, Web-ISAPI-Ext, Web-ISAPI-Filter, Web-Includes, InkandHandwritingServices 
+    Restart-LabVM -ComputerName $wacServers -Wait
+    
+    Install-LabSoftwarePackage -ComputerName $wacServers -Path E:\LabSources\OSUpdates\2012R2\Windows8.1-KB2999226-x64.msu -CommandLine /quiet
+    $drive = Mount-LabIsoImage -ComputerName $wacServers -IsoPath E:\LabSources\ISOs\en_office_online_server_last_updated_november_2016_x64_dvd_9560463.iso -PassThru
+    Install-LabSoftwarePackage -ComputerName $wacServers -LocalPath "$($drive.DriveLetter)\setup.exe" -CommandLine "/config $($drive.DriveLetter)\Files\SetupSilent\config.xml"
+    Dismount-LabIsoImage -ComputerName $wacServers
+}
+
+function Invoke-SfBLabScript
+{
+    if (-not $script:scriptFilePath)
+    {
+        Write-Error "No SfB Install script for AutomatedLab created yet. Use the cmdlet 'New-SfBLab' first"
+        return
+    }
+    
+    &$script:scriptFilePath
 }
 
 function Add-SfBLabInternalNetworks
@@ -379,33 +430,22 @@ function Add-SfBLabDomains
     {
         $numberOfDcs = Read-Host -Prompt "How many Domain Controllers do you want to have for domain '$($domain)'?"
 
-
-        Write-Host "Adding domain controller 'DC$i' to domain $($domain)"
-        #$line = 'Add-LabMachineDefinition -Name DC{1} -Memory 512MB -Network $internal -DomainName {0} -Roles RootDC -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER"' -f $domain, $i
-        #$sb.AppendLine($line) | Out-Null
-        $i++
-        
-        $fqdn = 'DC1.domain.local'
-        $machine = $machines | Where-Object FQDN -eq $fqdn
-        if ($machine)
+        foreach ($i in (1..$numberOfDcs))
         {
-            $machine | Add-Member -Name DomainRole -MemberType NoteProperty -Value RootDC
+            $fqdn = "DC$i.$($domain)"
+            $machine = $machines | Where-Object FQDN -eq $fqdn
+            $domainRole = if ($i -eq 1) { 'RootDC' } else { 'DC' }
+            
+            if ($machine)
+            {
+                $machine | Add-Member -Name DomainRole -MemberType NoteProperty -Value $domainRole
+            }
+            else
+            {
+                $machine = New-Object PSObject -Property @{ DomainRole = $domainRole; FQDN = $fqdn }
+                $machines.Add($machine)
+            }
         }
-        else
-        {
-            $machine = New-Object PSObject -Property @{ DomainRole = 'RootDC'; FQDN = $fqdn }
-            $machines.Add($machine)
-        }
-
-        <#if ($numberOfDcs -gt 1)
-                {
-                2..$numberOfDcs | ForEach-Object {
-                Write-Host "Adding domain controller 'DC$i' to domain $($domain)"
-                $line = 'Add-LabMachineDefinition -Name DC{1} -Memory 512MB -Network $internal -DomainName {0} -Roles DC -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER"' -f $domain, $i
-                $sb.AppendLine($line) | Out-Null
-                $i++
-                }
-        }#>
     }
     
     Write-Host

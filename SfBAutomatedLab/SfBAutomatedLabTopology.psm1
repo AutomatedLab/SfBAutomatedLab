@@ -1,3 +1,22 @@
+Add-Type -TypeDefinition '
+using System;
+
+namespace SfBAutomatedLab
+{
+    [Flags]
+    public enum SfBServerRole
+    {
+        None = 0,
+        FrontEnd = 1,
+        Edge = 2,
+        Mediation = 4,
+        SqlServer = 8,
+        WacService = 16,
+        File = 32
+    }
+}
+'
+
 function Import-SfBTopology
 {
     param (
@@ -152,10 +171,17 @@ function Get-SfBTopologyMachine
 
                 $node | Add-Member -MemberType NoteProperty -Name CentralSiteId -Value $node.ParentNode.ParentNode.SiteId
                 $node | Add-Member -MemberType NoteProperty -Name CentralSiteName -Value $node.ParentNode.ParentNode.Name
+                
+                $role = [SfBAutomatedLab.SfBServerRole]::None
 
-                $node | Add-Member -MemberType NoteProperty -Name IsSqlServer -Value ([bool]$node.ParentNode.ParentNode.SqlInstances)
-                $node | Add-Member -MemberType NoteProperty -Name IsFileServer -Value ($node.Fqdn -in (Get-SfBTopologyFileStore).InstalledOnMachines)
-
+                if ($node.ParentNode.ParentNode.SqlInstances) { $role = $role -bor [SfBAutomatedLab.SfBServerRole]::SqlServer }
+                if ($node.Fqdn -in (Get-SfBTopologyFileStore).InstalledOnMachines) { $role = $role -bor [SfBAutomatedLab.SfBServerRole]::File }
+                if (Get-SfBTopologyCluster -Id $node.ClusterUniqueId | Get-SfBTopologyClusterService | Where-Object RoleName -eq UserServices) { $role = $role -bor [SfBAutomatedLab.SfBServerRole]::FrontEnd }
+                if (Get-SfBTopologyCluster -Id $node.ClusterUniqueId | Get-SfBTopologyClusterService | Where-Object RoleName -eq EdgeServer) { $role = $role -bor [SfBAutomatedLab.SfBServerRole]::Edge }
+                if (Get-SfBTopologyCluster -Id $node.ClusterUniqueId | Get-SfBTopologyClusterService | Where-Object RoleName -eq WacService) { $role = $role -bor [SfBAutomatedLab.SfBServerRole]::WacService }
+                
+                $node | Add-Member -Name Roles -MemberType NoteProperty -Value $role
+                
                 $node
             }
         }
@@ -204,12 +230,12 @@ function Get-SfBMachineRoleString
 
     $roleString = @()
 
-    if ($Machine.IsFileServer)
+    if (($Machine.Roles -band [SfBAutomatedLab.SfBServerRole]::File) -eq [SfBAutomatedLab.SfBServerRole]::File)
     {
         $roleString += 'FileServer'
     }
 
-    if ($Machine.IsSqlServer)
+    if (($Machine.Roles -band [SfBAutomatedLab.SfBServerRole]::SqlServer) -eq [SfBAutomatedLab.SfBServerRole]::SqlServer)
     {
         $roleString += 'SqlServer2014'
     }
@@ -217,7 +243,7 @@ function Get-SfBMachineRoleString
     if ($Machine.DomainRole -eq 'RootDC')
     {
         $roleString += 'RootDC'
-    }    
+    }
     elseif ($Machine.DomainRole -eq 'DC')
     {
         $roleString += 'DC'

@@ -1,20 +1,20 @@
 Add-Type -TypeDefinition '
-using System;
+    using System;
 
-namespace SfBAutomatedLab
-{
+    namespace SfBAutomatedLab
+    {
     [Flags]
     public enum SfBServerRole
     {
-        None = 0,
-        FrontEnd = 1,
-        Edge = 2,
-        Mediation = 4,
-        SqlServer = 8,
-        WacService = 16,
-        File = 32
+    None = 0,
+    FrontEnd = 1,
+    Edge = 2,
+    Mediation = 4,
+    SqlServer = 8,
+    WacService = 16,
+    File = 32
     }
-}
+    }
 '
 
 function Import-SfBTopology
@@ -24,12 +24,28 @@ function Import-SfBTopology
         [string]$Path
     )
 	
-    $script:tp = [xml](Get-Content -Path $Path)
+    $script:tpContent = Get-Content -Path $Path
+    $script:tp = [xml]$script:tpContent
+    $script:tpFileName = $Path
+    
     $script:ns = @{ 
         tp = 'urn:schema:Microsoft.Rtc.Management.Deploy.TopologyBuilder.2008'
         wt = 'urn:schema:Microsoft.Rtc.Management.Deploy.WritableTopology.2008'
         t = 'urn:schema:Microsoft.Rtc.Management.Deploy.Topology.2008'
     }
+}
+
+function Get-SfBTopology
+{
+    if (-not $script:tpFileName)
+    {
+        Write-Error "No SfB topology imported, use 'Import-SfBTopology' first."
+    }
+     
+    New-Object psobject -Property ([ordered]@{
+        Path = $script:tpFileName
+        Content = $Script:tpContent
+    })
 }
 
 function Get-SfBTopologySipDomain

@@ -1,3 +1,49 @@
+function Read-Choice
+{    
+    param(
+        [Parameter(Mandatory)]
+        [String[]]$ChoiceList, 
+
+        [Parameter(Mandatory)]
+        [String]$Caption,
+        
+        [String]$Message,
+
+        [int]$Default = 0
+    )
+    
+    if (-not $Message) { $Message = $Caption }
+
+    $choices = New-Object System.Collections.ObjectModel.Collection[System.Management.Automation.Host.ChoiceDescription]
+
+    $choiceList | ForEach-Object { $choices.Add((New-Object "System.Management.Automation.Host.ChoiceDescription" -ArgumentList $_)) }
+
+    $Host.UI.PromptForChoice($Caption, $Message, $choices, $Default) 
+}
+
+function Read-HashTable
+{    
+    param(
+        [Parameter(Mandatory)]
+        [String[]]$ChoiceList, 
+
+        [Parameter(Mandatory)]
+        [String]$Caption,
+        
+        [String]$Message,
+
+        [int]$Default = 0
+    )
+    
+    #if (-not $Message) { $Message = $Caption }
+
+    $fields = New-Object System.Collections.ObjectModel.Collection[System.Management.Automation.Host.FieldDescription]
+
+    $choiceList | ForEach-Object { $fields.Add((New-Object System.Management.Automation.Host.FieldDescription -ArgumentList $_)) }
+
+    $Host.UI.Prompt($Caption, $Message, $fields)    
+}
+
 function Start-SfBLabDeployment
 {
     param
@@ -69,6 +115,30 @@ function New-SfBLab
     {
         Write-Error "The file '$TopologyFilePath' could not be found"
         return
+    }
+    
+    Write-Host '-------------------------------------------------------------'
+    Write-Host 'Checking for prerequisites...' -NoNewline
+    
+    $testPrerequisites = Test-SfBLabRequirements
+    if (-not $testPrerequisites)
+    { Write-Host 'NOT FOUND' } else { Write-Host 'found' }
+    Write-Host '-------------------------------------------------------------'
+    
+    if (-not $testPrerequisites)
+    {
+        try
+        {
+            Set-SfBLabRequirements -ErrorAction Stop
+        }
+        catch
+        {
+            throw "The cmdlet 'Set-SfBLabRequirements' did not complete. Please finish this task first."
+        }
+    }
+    else
+    {
+        $script:prerequisites = Get-SfBLabRequirements
     }
     
     Write-Host '-------------------------------------------------------------'
@@ -176,18 +246,18 @@ function New-SfBLab
             }
             else
             {
-                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -NetworkAdapter $netAdapter -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRole = "{3}" }}' -f $name, $domain, $roles, $machine.Roles
+                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -NetworkAdapter $netAdapter -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{3}" }}' -f $name, $domain, $roles, $machine.Roles
             }
         }
         else
         {
             if ($machine.IsEdgeServer)
             {
-                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRole = "{1}" }}' -f $name, $machine.Roles
+                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{1}" }}' -f $name, $machine.Roles
             }
             else
             {
-                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRole = "{3}" }}' -f $name, $domain, $roles, $machine.Roles
+                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{3}" }}' -f $name, $domain, $roles, $machine.Roles
             }
         }
         $sb.AppendLine($line ) | Out-Null
@@ -202,7 +272,9 @@ function New-SfBLab
     else
     {
         $sb.AppendLine('Install-Lab') | Out-Null
-    
+        
+        $sb.AppendLine("Import-SfBTopology -Path $((Get-SfBTopology).Path)") | Out-Null
+        
         $sb.AppendLine('Add-SfbClusterDnsRecords') | Out-Null
         $sb.AppendLine('Add-SfbFileShares') | Out-Null    
     
@@ -231,10 +303,17 @@ function New-SfBLab
 
 function Invoke-SfBLabPostInstallations
 {
+    if (-not (Get-Lab))
+    {
+        Write-Error "Lab in not imported. Use 'Import-Lab' first"
+        return
+    }
+    if (-not $prerequisites) { $script:prerequisites = Get-SfBLabRequirements }
+    
     $labSources = Get-LabSourcesLocation
-    $frontendServers = Get-LabMachine | Where-Object { $_.Notes.SfBRole -like '*FrontEnd*' }
-    $edgeServers = Get-LabMachine | Where-Object { $_.Notes.SfBRole -like '*Edge*' }
-        $wacServers = Get-LabMachine | Where-Object { $_.Notes.SfBRole -like '*WacService*' }
+    $frontendServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*FrontEnd*' }
+    $edgeServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*Edge*' }
+    $wacServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*WacService*' }
     
     Install-LabWindowsFeature -ComputerName $frontendServers -FeatureName NET-Framework-Core, RSAT-ADDS, Windows-Identity-Foundation, Web-Server, Web-Static-Content, Web-Default-Doc, Web-Http-Errors, Web-Dir-Browsing, Web-Asp-Net, Web-Net-Ext, Web-ISAPI-Ext, Web-ISAPI-Filter, Web-Http-Logging, Web-Log-Libraries, Web-Request-Monitor, Web-Http-Tracing, Web-Basic-Auth, Web-Windows-Auth, Web-Client-Auth, Web-Filtering, Web-Stat-Compression, Web-Dyn-Compression, NET-WCF-HTTP-Activation45, Web-Asp-Net45, Web-Mgmt-Tools, Web-Scripting-Tools, Web-Mgmt-Compat, Server-Media-Foundation, BITS
     Install-LabWindowsFeature -ComputerName $edgeServers -FeatureName RSAT-ADDS, Web-Server, Web-Static-Content, Web-Default-Doc, Web-Http-Errors, Web-Asp-Net, Web-Net-Ext, Web-ISAPI-Ext, Web-ISAPI-Filter, Web-Http-Logging, Web-Log-Libraries, Web-Request-Monitor, Web-Http-Tracing, Web-Basic-Auth, Web-Windows-Auth, Web-Client-Auth, Web-Filtering, Web-Stat-Compression, NET-WCF-HTTP-Activation45, Web-Asp-Net45, Web-Scripting-Tools, Web-Mgmt-Compat, Desktop-Experience, Telnet-Client
@@ -242,8 +321,14 @@ function Invoke-SfBLabPostInstallations
     Install-LabWindowsFeature -ComputerName $wacServers -FeatureName Web-Server, Web-Mgmt-Tools, Web-Mgmt-Console, Web-WebServer, Web-Common-Http, Web-Default-Doc, Web-Static-Content, Web-Performance, Web-Stat-Compression, Web-Dyn-Compression, Web-Security, Web-Filtering, Web-Windows-Auth, Web-App-Dev, Web-Net-Ext45, Web-Asp-Net45, Web-ISAPI-Ext, Web-ISAPI-Filter, Web-Includes, InkandHandwritingServices 
     Restart-LabVM -ComputerName $wacServers -Wait
     
-    Install-LabSoftwarePackage -ComputerName $wacServers -Path E:\LabSources\OSUpdates\2012R2\Windows8.1-KB2999226-x64.msu -CommandLine /quiet
-    $drive = Mount-LabIsoImage -ComputerName $wacServers -IsoPath E:\LabSources\ISOs\en_office_online_server_last_updated_november_2016_x64_dvd_9560463.iso -PassThru
+    $RequiredWindowsFixes = $prerequisites.RequiredWindowsFixes.Keys
+    foreach ($requiredWindowsFix in $RequiredWindowsFixes)
+    {
+        $file = Get-ChildItem -Path $labSources\OSUpdates -Recurse -Filter $requiredWindowsFix
+        Install-LabSoftwarePackage -ComputerName $wacServers -Path $file.FullName -CommandLine /quiet
+    }
+    
+    $drive = Mount-LabIsoImage -ComputerName $wacServers -IsoPath $prerequisites.ISOs.OfficeOnline2016Iso -PassThru
     Install-LabSoftwarePackage -ComputerName $wacServers -LocalPath "$($drive.DriveLetter)\setup.exe" -CommandLine "/config $($drive.DriveLetter)\Files\SetupSilent\config.xml"
     Dismount-LabIsoImage -ComputerName $wacServers
 }
@@ -457,7 +542,7 @@ function Add-SfBLabFundamentals
     $sb.AppendLine('$labSources = Get-LabSourcesLocation') | Out-Null
 
     $sb.AppendLine('New-LabDefinition -Name $labName -DefaultVirtualizationEngine HyperV') | Out-Null
-    $sb.AppendLine('Add-LabIsoImageDefinition -Name SQLServer2014 -Path $labSources\ISOs\en_sql_server_2014_standard_edition_with_service_pack_2_x64_dvd_8961564.iso') | Out-Null
+    $sb.AppendLine("Add-LabIsoImageDefinition -Name SQLServer2014 -Path $($prerequisites.ISOs.SqlServer2014)") | Out-Null
 
     Write-Host "Setting default installation credentials for machines to user 'Install' with password 'Somepass1'"
     $sb.AppendLine('Set-LabInstallationCredential -Username Install -Password Somepass1') | Out-Null
@@ -468,7 +553,7 @@ function Add-SfBLabFundamentals
 
 function Add-SfBClusterDnsRecords
 {
-    $clusters = Get-SfBTopologyCluster
+    $clusters = Get-SfBTopologyCluster | Where-Object { $_.IsSingleMachineOnly -eq 'false' }
 
     foreach ($cluster in $clusters)
     {
@@ -484,7 +569,7 @@ function Add-SfBClusterDnsRecords
 
             $dnsCmd = 'Add-DnsServerResourceRecord -Name {0} -ZoneName {1} -IPv4Address {2} -A' -f $clusterName, $clusterDnsZone, $labMachine.IpV4Address
 
-            Invoke-LabCommand -ActivityName AddClusterDnsRecord -ComputerName $dc -ScriptBlock ([scriptblock]::Create($dnsCmd))
+            Invoke-LabCommand -ActivityName "AddClusterDnsRecord ($clusterName -> $($labMachine.IpV4Address))" -ComputerName $dc -ScriptBlock ([scriptblock]::Create($dnsCmd))
         }
     }
 }
@@ -510,4 +595,118 @@ function Add-SfBFileShares
         $installedOnMachines = $fileStore.InstalledOnMachines.Substring(0, $fileStore.InstalledOnMachines.IndexOf('.'))
         Invoke-LabCommand -ActivityName NewFileStore -ComputerName $installedOnMachines -ScriptBlock $cmd -ArgumentList $fileStore.ShareName
     }
+}
+
+function Test-SfBLabRequirements
+{
+    [CmdletBinding()]
+    
+    param()
+    
+    $regCache = Get-SfBLabRequirements
+    
+    return [bool]$regCache
+}
+
+function Get-SfBLabRequirements
+{
+    [CmdletBinding()]
+    
+    param()
+    
+    $type = Get-Type -GenericType AutomatedLab.DictionaryXmlStore -T String, (Get-Type -GenericType AutomatedLab.SerializableDictionary -T string,string)
+    
+    try
+    {
+        $type::ImportFromRegistry('Cache', 'SfB')
+    }
+    catch
+    {
+        Write-Verbose 'No settings found in the registry'
+    }
+}
+
+function Set-SfBLabRequirements
+{
+    [CmdletBinding()]
+    
+    param()
+
+    $labSources = Get-LabSourcesLocation
+    
+    $requiredIsos = $PSCmdlet.MyInvocation.MyCommand.Module.PrivateData.RequiredIsos
+    $requiredWindowsFixes = $PSCmdlet.MyInvocation.MyCommand.Module.PrivateData.RequiredWindowsFixes
+    
+    $type = Get-Type -GenericType AutomatedLab.DictionaryXmlStore -T String, (Get-Type -GenericType AutomatedLab.SerializableDictionary -T string,string)
+    
+    Write-Verbose 'Trying to find existing settings...'
+    
+    try
+    {
+        $regCache = $type::ImportFromRegistry('Cache', 'SfB')        
+        $result = Read-Choice -ChoiceList '&Yes', '&No' -Caption 'Do you want to change and overwrite the existing settings?' -Default 1
+    }
+    catch
+    {
+        $result = 0
+    }
+    
+    if ($result -eq 0)
+    {
+        Write-Host
+        Write-Host 'In order to install the lab, some ISO files need to be present and known to SfBAutomatedLab. Please provide the paths to:'
+        $data = Read-HashTable -ChoiceList $requiredIsos -Caption 'Please copy and paste the paths to the required ISO files here:'
+    }
+    
+    if ($data)
+    {
+        $isos = New-Object (Get-Type -GenericType AutomatedLab.SerializableDictionary -T string,string)
+        $data.GetEnumerator() | ForEach-Object {
+            $isos.Add($_.Key, $_.Value)
+        }
+        
+        $regCache = New-Object $type
+        $regCache.Add('ISOs', $isos)
+    }
+    
+    $regCache.ISOs.GetEnumerator() | ForEach-Object {
+        if (-not $_.Value)
+        {
+            throw "The path for '$($_.Key)' is empty. Please start the function 'Set-SfBLabRequirements' again and overwrite the existing settings."
+        }
+        if (-not (Test-Path -Path $_.Value -PathType Leaf))
+        {
+            throw "The path for $($_.Key) ($($_.Value)) could not be validated. Please start the function 'Set-SfBLabRequirements' again"
+        }
+    }
+    
+    #-------------------------------
+    
+    $allRequiredFixesAvailable = 1
+    
+    Write-Host
+    Write-Host "Checking for required fixes..."
+    
+    $fixes = New-Object (Get-Type -GenericType AutomatedLab.SerializableDictionary -T string,string)
+    
+    foreach ($requiredWindowsFix in $requiredWindowsFixes)
+    {
+        Write-Host "$requiredWindowsFix - " -NoNewline
+        $exists = [bool](Get-ChildItem -Path $labSources -Filter $requiredWindowsFix -Recurse)
+        
+        if ($exists) { Write-Host 'ok' } else { Write-Host 'NOT FOUND' }
+        $fixes.Add($requiredWindowsFix, $exists)
+        
+        $allRequiredFixesAvailable = $allRequiredFixesAvailable -band $exists
+    }
+    
+    Write-Host
+    if (-not $allRequiredFixesAvailable)
+    {
+        throw 'Required fixes are missing. Please put the files into the OSUpdates folder which is inside the LabSources folder'
+    }
+    
+    $regCache.RequiredWindowsFixes = $fixes
+    
+    $regCache.ExportToRegistry('Cache', 'SfB')
 }

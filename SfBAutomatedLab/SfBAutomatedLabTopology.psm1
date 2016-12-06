@@ -258,7 +258,7 @@ function Get-SfBMachineRoleString
     
     if ($Machine.DomainRole -eq 'RootDC')
     {
-        $roleString += 'RootDC'
+        $roleString += 'RootDC, CaRoot'
     }
     elseif ($Machine.DomainRole -eq 'DC')
     {

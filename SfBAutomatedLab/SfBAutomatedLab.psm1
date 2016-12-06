@@ -585,7 +585,7 @@ function Add-SfBFileShares
         $data = mkdir c:\data -Force
 
         $newFolder = mkdir -Path (Join-Path -Path $data -ChildPath $name)
-        New-SmbShare -Path $newFolder -Name $name -Description SfB
+        New-SmbShare -Path $newFolder -Name $name -Description SfB -FullAccess Everyone
     }
 
     $fileStores = Get-SfBTopologyFileStore

@@ -321,11 +321,9 @@ function Invoke-SfBLabPostInstallations
     Install-LabWindowsFeature -ComputerName $wacServers -FeatureName Web-Server, Web-Mgmt-Tools, Web-Mgmt-Console, Web-WebServer, Web-Common-Http, Web-Default-Doc, Web-Static-Content, Web-Performance, Web-Stat-Compression, Web-Dyn-Compression, Web-Security, Web-Filtering, Web-Windows-Auth, Web-App-Dev, Web-Net-Ext45, Web-Asp-Net45, Web-ISAPI-Ext, Web-ISAPI-Filter, Web-Includes, InkandHandwritingServices 
     Restart-LabVM -ComputerName $wacServers -Wait
     
-    $RequiredWindowsFixes = $prerequisites.RequiredWindowsFixes.Keys
-    foreach ($requiredWindowsFix in $RequiredWindowsFixes)
+    foreach ($requiredWindowsFix in $prerequisites.RequiredWindowsFixes.GetEnumerator())
     {
-        $file = Get-ChildItem -Path $labSources\OSUpdates -Recurse -Filter $requiredWindowsFix
-        Install-LabSoftwarePackage -ComputerName $wacServers -Path $file.FullName -CommandLine /quiet
+        Install-LabSoftwarePackage -ComputerName $wacServers -Path $requiredWindowsFix.Value -CommandLine /quiet
     }
     
     $drive = Mount-LabIsoImage -ComputerName $wacServers -IsoPath $prerequisites.ISOs.OfficeOnline2016Iso -PassThru
@@ -689,19 +687,19 @@ function Set-SfBLabRequirements
     
     $fixes = New-Object (Get-Type -GenericType AutomatedLab.SerializableDictionary -T string,string)
     
+	$isOneFixMissing = $false
     foreach ($requiredWindowsFix in $requiredWindowsFixes)
     {
         Write-Host "$requiredWindowsFix - " -NoNewline
-        $exists = [bool](Get-ChildItem -Path $labSources -Filter $requiredWindowsFix -Recurse)
+        $exists = (Get-ChildItem -Path $labSources -Filter $requiredWindowsFix -Recurse).FullName
         
-        if ($exists) { Write-Host 'ok' } else { Write-Host 'NOT FOUND' }
+        if ($exists) { Write-Host 'ok' } else { Write-Host 'NOT FOUND';$isOneFixMissing = $true }
+
         $fixes.Add($requiredWindowsFix, $exists)
-        
-        $allRequiredFixesAvailable = $allRequiredFixesAvailable -band $exists
     }
     
     Write-Host
-    if (-not $allRequiredFixesAvailable)
+    if ($isOneFixMissing)
     {
         throw 'Required fixes are missing. Please put the files into the OSUpdates folder which is inside the LabSources folder'
     }

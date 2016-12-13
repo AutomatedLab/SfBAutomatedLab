@@ -273,7 +273,7 @@ function New-SfBLab
     {
         $sb.AppendLine('Install-Lab') | Out-Null
         
-        $sb.AppendLine("Import-SfBTopology -Path $((Get-SfBTopology).Path)") | Out-Null
+        $sb.AppendLine("Import-SfBTopology -Path '$((Get-SfBTopology).Path)'") | Out-Null
         
         $sb.AppendLine('Add-SfbClusterDnsRecords') | Out-Null
         $sb.AppendLine('Add-SfbFileShares') | Out-Null    

@@ -190,7 +190,25 @@ function Get-SfBTopologyMachine
                 
                 $role = [SfBAutomatedLab.SfBServerRole]::None
 
-                if ($node.ParentNode.ParentNode.SqlInstances) { $role = $role -bor [SfBAutomatedLab.SfBServerRole]::SqlServer }
+                if ($node.ParentNode.ParentNode.SqlInstances) { 
+					$role = $role -bor [SfBAutomatedLab.SfBServerRole]::SqlServer
+
+					# Add a second node to the output if we find an AlwaysOn configuration
+					if($node.ParentNode.ParentNode.SqlInstances.SqlInstance.HasAttribute('AlwaysOnPrimaryNodeFqdn'))
+					{
+						$HaPartnerFqdn =  $node.ParentNode.ParentNode.SqlInstances.SqlInstance.AlwaysOnPrimaryNodeFqdn						
+						$HaNode = $node.PSObject.Copy()
+
+						$node | Add-Member -MemberType NoteProperty -Name AlwaysOnPartner -Value $HaPartnerFqdn
+
+						$HaNode.ClusterFqdn = $HaPartnerFqdn
+						$HaNode.Fqdn = $HaPartnerFqdn
+						$HaNode.FaultDomain = $HaPartnerFqdn
+						$HaNode.UpgradeDomain = $HaPartnerFqdn
+						$HaNode | Add-Member -Name Roles -MemberType NoteProperty -Value $role
+						$HaNode
+					}
+				}
                 if ($node.Fqdn -in (Get-SfBTopologyFileStore).InstalledOnMachines) { $role = $role -bor [SfBAutomatedLab.SfBServerRole]::File }
                 if (Get-SfBTopologyCluster -Id $node.ClusterUniqueId | Get-SfBTopologyClusterService | Where-Object RoleName -eq UserServices) { $role = $role -bor [SfBAutomatedLab.SfBServerRole]::FrontEnd }
                 if (Get-SfBTopologyCluster -Id $node.ClusterUniqueId | Get-SfBTopologyClusterService | Where-Object RoleName -eq EdgeServer) { $role = $role -bor [SfBAutomatedLab.SfBServerRole]::Edge }

@@ -244,6 +244,10 @@ function New-SfBLab
             {
                 $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -NetworkAdapter $netAdapter -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{1}" }}' -f $name, $machine.Roles
             }
+			elseif(($machine.Roles -band [SfBAutomatedLab.SfBServerRole]::SqlServer) -eq [SfBAutomatedLab.SfBServerRole]::SqlServer -and [bool]($machine.PSobject.Properties.Name -eq "AlwaysOnPartner"))
+			{				
+				$line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -NetworkAdapter $netAdapter -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{3}"; AlwaysOnPartner = "{4}" }}' -f $name, $domain, $roles, $machine.Roles,$machine.AlwaysOnPartner
+			}
             else
             {
                 $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -NetworkAdapter $netAdapter -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{3}" }}' -f $name, $domain, $roles, $machine.Roles
@@ -255,6 +259,10 @@ function New-SfBLab
             {
                 $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{1}" }}' -f $name, $machine.Roles
             }
+			elseif(($machine.Roles -band [SfBAutomatedLab.SfBServerRole]::SqlServer) -eq [SfBAutomatedLab.SfBServerRole]::SqlServer -and [bool]($machine.PSobject.Properties.Name -eq "AlwaysOnPartner"))
+			{				
+				$line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{3}"; AlwaysOnPartner = "{4}" }}' -f $name, $domain, $roles, $machine.Roles,$machine.AlwaysOnPartner
+			}
             else
             {
                 $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{3}" }}' -f $name, $domain, $roles, $machine.Roles

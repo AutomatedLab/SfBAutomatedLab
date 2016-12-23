@@ -3,17 +3,17 @@ Add-Type -TypeDefinition '
 
     namespace SfBAutomatedLab
     {
-    [Flags]
-    public enum SfBServerRole
-    {
-    None = 0,
-    FrontEnd = 1,
-    Edge = 2,
-    Mediation = 4,
-    SqlServer = 8,
-    WacService = 16,
-    File = 32
-    }
+		[Flags]
+		public enum SfBServerRole
+		{
+			None = 0,
+			FrontEnd = 1,
+			Edge = 2,
+			Mediation = 4,
+			SqlServer = 8,
+			WacService = 16,
+			File = 32
+		}
     }
 '
 

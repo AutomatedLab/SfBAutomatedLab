@@ -244,10 +244,10 @@ function New-SfBLab
             {
                 $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -NetworkAdapter $netAdapter -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{1}" }}' -f $name, $machine.Roles
             }
-			elseif(($machine.Roles -band [SfBAutomatedLab.SfBServerRole]::SqlServer) -eq [SfBAutomatedLab.SfBServerRole]::SqlServer -and [bool]($machine.PSobject.Properties.Name -eq "AlwaysOnPartner"))
-			{				
-				$line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -NetworkAdapter $netAdapter -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{3}"; AlwaysOnPartner = "{4}" }}' -f $name, $domain, $roles, $machine.Roles,$machine.AlwaysOnPartner
-			}
+            elseif(($machine.Roles -band [SfBAutomatedLab.SfBServerRole]::SqlServer) -eq [SfBAutomatedLab.SfBServerRole]::SqlServer -and [bool]($machine.PSobject.Properties.Name -eq "AlwaysOnPartner"))
+            {				
+                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -NetworkAdapter $netAdapter -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{3}"; AlwaysOnPartner = "{4}" }}' -f $name, $domain, $roles, $machine.Roles,$machine.AlwaysOnPartner
+            }
             else
             {
                 $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -NetworkAdapter $netAdapter -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{3}" }}' -f $name, $domain, $roles, $machine.Roles
@@ -259,10 +259,10 @@ function New-SfBLab
             {
                 $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{1}" }}' -f $name, $machine.Roles
             }
-			elseif(($machine.Roles -band [SfBAutomatedLab.SfBServerRole]::SqlServer) -eq [SfBAutomatedLab.SfBServerRole]::SqlServer -and [bool]($machine.PSobject.Properties.Name -eq "AlwaysOnPartner"))
-			{				
-				$line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{3}"; AlwaysOnPartner = "{4}" }}' -f $name, $domain, $roles, $machine.Roles,$machine.AlwaysOnPartner
-			}
+            elseif(($machine.Roles -band [SfBAutomatedLab.SfBServerRole]::SqlServer) -eq [SfBAutomatedLab.SfBServerRole]::SqlServer -and [bool]($machine.PSobject.Properties.Name -eq "AlwaysOnPartner"))
+            {				
+                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{3}"; AlwaysOnPartner = "{4}" }}' -f $name, $domain, $roles, $machine.Roles,$machine.AlwaysOnPartner
+            }
             else
             {
                 $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{3}" }}' -f $name, $domain, $roles, $machine.Roles
@@ -309,7 +309,7 @@ function New-SfBLab
     }
 }
 
-function Invoke-SfBLabPostInstallations
+function Install-SfBLabRequirements
 {
     if (-not (Get-Lab))
     {
@@ -323,20 +323,184 @@ function Invoke-SfBLabPostInstallations
     $edgeServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*Edge*' }
     $wacServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*WacService*' }
     
-    Install-LabWindowsFeature -ComputerName $frontendServers -FeatureName NET-Framework-Core, RSAT-ADDS, Windows-Identity-Foundation, Web-Server, Web-Static-Content, Web-Default-Doc, Web-Http-Errors, Web-Dir-Browsing, Web-Asp-Net, Web-Net-Ext, Web-ISAPI-Ext, Web-ISAPI-Filter, Web-Http-Logging, Web-Log-Libraries, Web-Request-Monitor, Web-Http-Tracing, Web-Basic-Auth, Web-Windows-Auth, Web-Client-Auth, Web-Filtering, Web-Stat-Compression, Web-Dyn-Compression, NET-WCF-HTTP-Activation45, Web-Asp-Net45, Web-Mgmt-Tools, Web-Scripting-Tools, Web-Mgmt-Compat, Server-Media-Foundation, BITS
-    Install-LabWindowsFeature -ComputerName $edgeServers -FeatureName RSAT-ADDS, Web-Server, Web-Static-Content, Web-Default-Doc, Web-Http-Errors, Web-Asp-Net, Web-Net-Ext, Web-ISAPI-Ext, Web-ISAPI-Filter, Web-Http-Logging, Web-Log-Libraries, Web-Request-Monitor, Web-Http-Tracing, Web-Basic-Auth, Web-Windows-Auth, Web-Client-Auth, Web-Filtering, Web-Stat-Compression, NET-WCF-HTTP-Activation45, Web-Asp-Net45, Web-Scripting-Tools, Web-Mgmt-Compat, Desktop-Experience, Telnet-Client
+    Write-Host "Installing required features on Frontend Servers"
+    Install-LabWindowsFeature -ComputerName $frontendServers -FeatureName NET-Framework-Core, RSAT-ADDS, Windows-Identity-Foundation, Web-Server, Web-Static-Content, Web-Default-Doc, Web-Http-Errors, Web-Dir-Browsing, Web-Asp-Net, Web-Net-Ext, Web-ISAPI-Ext, Web-ISAPI-Filter, Web-Http-Logging, Web-Log-Libraries, Web-Request-Monitor, Web-Http-Tracing, Web-Basic-Auth, Web-Windows-Auth, Web-Client-Auth, Web-Filtering, Web-Stat-Compression, Web-Dyn-Compression, NET-WCF-HTTP-Activation45, Web-Asp-Net45, Web-Mgmt-Tools, Web-Scripting-Tools, Web-Mgmt-Compat, Server-Media-Foundation, BITS -NoDisplay
+    Write-Host "Installing required features on Edge Servers"
+    Install-LabWindowsFeature -ComputerName $edgeServers -FeatureName RSAT-ADDS, Web-Server, Web-Static-Content, Web-Default-Doc, Web-Http-Errors, Web-Asp-Net, Web-Net-Ext, Web-ISAPI-Ext, Web-ISAPI-Filter, Web-Http-Logging, Web-Log-Libraries, Web-Request-Monitor, Web-Http-Tracing, Web-Basic-Auth, Web-Windows-Auth, Web-Client-Auth, Web-Filtering, Web-Stat-Compression, NET-WCF-HTTP-Activation45, Web-Asp-Net45, Web-Scripting-Tools, Web-Mgmt-Compat, Desktop-Experience, Telnet-Client -NoDisplay
+    Write-Host "Installing required features on Office Online Servers"
+    Install-LabWindowsFeature -ComputerName $wacServers -FeatureName Web-Server, Web-Mgmt-Tools, Web-Mgmt-Console, Web-WebServer, Web-Common-Http, Web-Default-Doc, Web-Static-Content, Web-Performance, Web-Stat-Compression, Web-Dyn-Compression, Web-Security, Web-Filtering, Web-Windows-Auth, Web-App-Dev, Web-Net-Ext45, Web-Asp-Net45, Web-ISAPI-Ext, Web-ISAPI-Filter, Web-Includes, InkandHandwritingServices  -NoDisplay
+    Write-Host "Installing Windows features completed"
     
-    Install-LabWindowsFeature -ComputerName $wacServers -FeatureName Web-Server, Web-Mgmt-Tools, Web-Mgmt-Console, Web-WebServer, Web-Common-Http, Web-Default-Doc, Web-Static-Content, Web-Performance, Web-Stat-Compression, Web-Dyn-Compression, Web-Security, Web-Filtering, Web-Windows-Auth, Web-App-Dev, Web-Net-Ext45, Web-Asp-Net45, Web-ISAPI-Ext, Web-ISAPI-Filter, Web-Includes, InkandHandwritingServices 
     Restart-LabVM -ComputerName $wacServers -Wait
     
+    Write-Host
     foreach ($requiredWindowsFix in $prerequisites.RequiredWindowsFixes.GetEnumerator())
     {
+        Write-Host "Installing required fix on Frontend Servers '$($requiredWindowsFix.Key)' on Frontend Servers"
+        Install-LabSoftwarePackage -ComputerName $frontendServers -Path $requiredWindowsFix.Value -CommandLine /quiet
+        
+        Write-Host "Installing required fix on Frontend Servers '$($requiredWindowsFix.Key)' on Edge Servers"
+        Install-LabSoftwarePackage -ComputerName $edgeServers -Path $requiredWindowsFix.Value -CommandLine /quiet
+        
+        Write-Host "Installing required fix on Frontend Servers '$($requiredWindowsFix.Key)' on Office Online Servers"
         Install-LabSoftwarePackage -ComputerName $wacServers -Path $requiredWindowsFix.Value -CommandLine /quiet
     }
+    Write-Host
     
+    Write-Host "Installing Office Online Server on '$($wacServers.Name -join "', '")'"
     $drive = Mount-LabIsoImage -ComputerName $wacServers -IsoPath $prerequisites.ISOs.OfficeOnline2016Iso -PassThru
     Install-LabSoftwarePackage -ComputerName $wacServers -LocalPath "$($drive.DriveLetter)\setup.exe" -CommandLine "/config $($drive.DriveLetter)\Files\SetupSilent\config.xml"
     Dismount-LabIsoImage -ComputerName $wacServers
+    
+    Write-Host "Installing .net 3.5 on all lab machines"
+    $machines = Get-LabMachine
+    Install-LabWindowsFeature -ComputerName $machines -FeatureName NET-Framework-Features -IncludeAllSubFeature -AsJob -PassThru | Wait-Job | Out-Null
+}
+
+function Install-SfBLabActiveDirectory
+{
+    if (-not (Get-Lab))
+    {
+        Write-Error "Lab in not imported. Use 'Import-Lab' first"
+        return
+    }
+    if (-not $prerequisites) { $script:prerequisites = Get-SfBLabRequirements }
+    
+    $rootDc = Get-LabMachine -Role RootDC
+    
+    Write-Host "Installing SfB Management Tools on '$rootDc'"
+    $drive = Mount-LabIsoImage -ComputerName $rootDc -IsoPath $prerequisites.ISOs.SfB2015Iso -PassThru
+    Install-LabSoftwarePackage -ComputerName $rootDc -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstrapcore -NoDisplay
+    Dismount-LabIsoImage -ComputerName $rootDc
+
+    #The existing session must be removed to use the newly installed module
+    Remove-LabPSSession -ComputerName $rootDc
+
+    Write-Host
+    Write-Host "Preparing AD Schema"
+    Invoke-LabCommand -ComputerName $rootDc -ScriptBlock { Install-CSAdServerSchema -Confirm:$false -Report C:\SfBSchemaPrep.html } -UseCredSsp -NoDisplay
+
+    Write-Host "Preparing AD Forest"
+    Invoke-LabCommand -ComputerName $rootDc -ScriptBlock { Enable-CSAdForest -Confirm:$false -Report C:\SfBForestPrep.html } -UseCredSsp -NoDisplay
+
+    Write-Host "Preparing AD Domain"
+    Invoke-LabCommand -ComputerName $rootDc -ScriptBlock { Enable-CSAdDomain -Confirm:$false -Report C:\SfBDomainPrep.html } -UseCredSsp -NoDisplay
+
+    Write-Host "Adding Install user to CSAdministrators"
+    $installUser = ((Get-Lab).Domains | Where-Object Name -eq $rootDc.DomainName).Administrator.UserName
+    Invoke-LabCommand -ComputerName $rootDc -ScriptBlock { Get-ADGroup CSAdministrator | Add-ADGroupMember -Members $installUser } -UseCredSsp -Variable (Get-Variable -Name installUser) -NoDisplay
+
+    #TODO: Creating DNS entries
+
+    Write-Host "AD Preparations finished"
+    Write-Host
+}
+
+function Install-SfbLabSfbComponents
+{
+    if (-not (Get-Lab))
+    {
+        Write-Error "Lab in not imported. Use 'Import-Lab' first"
+        return
+    }
+    if (-not $prerequisites) { $script:prerequisites = Get-SfBLabRequirements }
+    
+    $lab = Get-Lab
+    $frontEndServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*frontend*' }
+    $1stFrontendServer = $frontEndServers | Select-Object -First 1
+
+    Write-Host "Restarting machine '$1stFrontendServer'..." -NoNewline
+    Restart-LabVM -ComputerName $1stFrontendServer -Wait
+    Write-Host 'done'
+    
+    Write-Host "Installing SfB Management Tools on '$1stFrontendServer'"
+    $drive = Mount-LabIsoImage -ComputerName $1stFrontendServer -IsoPath $prerequisites.ISOs.SfB2015Iso -PassThru
+    
+    Write-Host "Calling SfB 'setup.exe /bootstrapcore' on '$1stFrontendServer'"
+    Install-LabSoftwarePackage -ComputerName $1stFrontendServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstrapcore -NoDisplay
+    
+    Write-Host "Calling SfB 'admintools.msi' on '$1stFrontendServer'"
+    Install-LabSoftwarePackage -ComputerName $1stFrontendServer -LocalPath C:\Windows\System32\msiexec.exe -CommandLine "/i $($drive.DriveLetter)\Setup\amd64\Setup\admintools.msi ADDLOCAL=Feature_AdminTools REBOOT=ReallySuppress /qb! /L*v C:\Feature_AdminTools.log INSTALLDIR=""C:\Program Files\Skype for Business Server 2015\""" -UseCredSsp -NoDisplay
+
+    Write-Host "Calling SfB 'setup.exe //bootstraplocalmgmt' on '$1stFrontendServer'..."
+    Install-LabSoftwarePackage -ComputerName $1stFrontendServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstraplocalmgmt -NoDisplay
+    Write-Host
+    
+    Copy-LabFileItem -Path $lab.Notes.SfBTopologyPath -ComputerName $1stFrontendServer
+    Write-Host "SfB Topology copied to '$1stFrontendServer' (C:\)"
+
+    Dismount-LabIsoImage -ComputerName $1stFrontendServer
+
+    Write-Host "Removing PSSessions in order to use the newly installed modules"
+    Remove-LabPSSession -ComputerName $1stFrontendServer
+    
+    Write-Host "Calling 'Install-CsDatabase'..." -NoNewline
+    Invoke-LabCommand -ComputerName $1stFrontendServer -ScriptBlock { Install-CsDatabase -CentralManagementDatabase -SqlServerFqdn sql1.domain.local } -UseCredSsp
+    Write-Host 'done'
+    
+    Write-Host "Calling 'Set-CsConfigurationStoreLocation'..." -NoNewline
+    Invoke-LabCommand -ComputerName $1stFrontendServer -ScriptBlock { Set-CsConfigurationStoreLocation -SqlServerFqdn sql1.domain.local } -UseCredSsp
+    Write-Host 'done'
+
+    Write-Host
+    Write-Host '############################################################################'
+    Write-Host '# SfBAutomatedLab has created the following based on the given topology    #'
+    Write-Host '# - created all virtual machines                                           #'
+    Write-Host '# - installed all required features and hotfixes                           #'
+    Write-Host '# - created DNS records                                                    #'
+    Write-Host '# - created file shares                                                    #'
+    Write-Host '# - installed Office Online Server                                         #'
+    Write-Host '# - prepared AD forest and domain                                          #'
+    Write-Host '# - created SQL database                                                   #'
+    Write-Host '# The next steps are:                                                      #'
+    Write-Host '# - Manually publish the SfB topology on the 1st frontend server using the #'
+    Write-Host '#   Topology Builder. The topology is stored in c:\ on the 1st Frontned.   #'
+    Write-Host '############################################################################'
+    Write-Host '# Press enter to continue the deployment process after manually            #'
+    Write-Host '# publishing the topology                                                  #'    
+    Write-Host '############################################################################'
+    Read-Host | Out-Null
+
+    foreach ($frontEndServer in $frontEndServers)
+    {
+        $drive = Mount-LabIsoImage -ComputerName $frontEndServer -IsoPath $prerequisites.ISOs.SfB2015Iso -PassThru
+
+        Write-Host "Calling SfB 'setup.exe /bootstrapcore' on '$frontEndServer'"
+        Install-LabSoftwarePackage -ComputerName $frontEndServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstrapcore -NoDisplay
+        
+        #The existing session must be removed to use the newly installed module
+        Remove-LabPSSession -ComputerName $frontEndServer
+    
+        Write-Host "Calling 'Export-CsConfiguration' on '$frontEndServer'"
+        Invoke-LabCommand -ComputerName $frontEndServer -ScriptBlock { Export-CsConfiguration -FileName C:\CsConfigData.zip } -UseCredSsp -NoDisplay
+        Write-Host "Calling 'Import-CSConfiguration' on '$frontEndServer'"
+        Invoke-LabCommand -ComputerName $frontEndServer -ScriptBlock { Import-CSConfiguration -FileName C:\CsConfigData.zip -LocalStore } -UseCredSsp -NoDisplay
+        Write-Host "Calling 'Enable-CSReplica' on '$frontEndServer'"
+        Invoke-LabCommand -ComputerName $frontEndServer -ScriptBlock { Enable-CSReplica -Confirm:$false -Report C:\Enable-CSReplica.html } -UseCredSsp
+
+        Write-Host "Calling SfB 'setup.exe /bootstrap' on '$frontEndServer'..." -NoNewline
+        Install-LabSoftwarePackage -ComputerName $frontEndServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstrap -UseCredSsp -NoDisplay -PassThru
+        Write-Host 'done'
+    
+        Dismount-LabIsoImage -ComputerName $frontEndServer
+        
+        Write-Host "Requesting and assigning certificate on '$frontEndServer'"
+        $ca = Get-LabIssuingCA -DomainName $frontEndServer.DomainName
+        Invoke-LabCommand -ComputerName $frontEndServer -ScriptBlock {
+            $cert = Request-CSCertificate -New -Type Default,WebServicesInternal,WebServicesExternal -CA $args[0] -Country "GE" -FriendlyName "Skype for Business Server 2015 Default certificate" -KeySize 2048 -PrivateKeyExportable $False -Organization "NA" -OU "NA" -DomainName "sip.sipdomain.com" -AllSipDomain -Verbose -Report C:\Request-CSCertificate.html
+            Set-CSCertificate -Type Default,WebServicesInternal,WebServicesExternal -Thumbprint $cert.Thumbprint -Confirm:$false -Report C:\Set-CSCertificate.html    
+        } -ArgumentList $ca.CaPath -PassThru -UseCredSsp -NoDisplay
+    }
+    
+    Import-SfBTopology -Path $lab.Notes.SfBTopologyPath
+    
+    Get-SfBTopologyCluster | Select-Object -First 1 | Get-SfBTopologyMachine | Select-Object -ExpandProperty ClusterFqdn -Unique | ForEach-Object {
+    
+        Write-Host "Starting Pool '$_'"
+
+        Invoke-LabCommand -ComputerName $1stFrontendServer -ScriptBlock { Start-CsPool -PoolFqdn $args[0] -Confirm:$false } -ArgumentList $_
+
+    }
 }
 
 function Invoke-SfBLabScript
@@ -547,7 +711,8 @@ function Add-SfBLabFundamentals
     $sb.AppendLine(('$labName = "{0}"' -f $LabName)) | Out-Null
     $sb.AppendLine('$labSources = Get-LabSourcesLocation') | Out-Null
 
-    $sb.AppendLine('New-LabDefinition -Name $labName -DefaultVirtualizationEngine HyperV') | Out-Null
+    $line = 'New-LabDefinition -Name $labName -DefaultVirtualizationEngine HyperV -Notes @{{ SfBTopologyPath = "{0}" }}' -f $TopologyFilePath
+    $sb.AppendLine($line) | Out-Null
     $sb.AppendLine("Add-LabIsoImageDefinition -Name SQLServer2014 -Path $($prerequisites.ISOs.SqlServer2014)") | Out-Null
 
     Write-Host "Setting default installation credentials for machines to user 'Install' with password 'Somepass1'"
@@ -695,7 +860,7 @@ function Set-SfBLabRequirements
     
     $fixes = New-Object (Get-Type -GenericType AutomatedLab.SerializableDictionary -T string,string)
     
-	$isOneFixMissing = $false
+    $isOneFixMissing = $false
     foreach ($requiredWindowsFix in $requiredWindowsFixes)
     {
         Write-Host "$requiredWindowsFix - " -NoNewline

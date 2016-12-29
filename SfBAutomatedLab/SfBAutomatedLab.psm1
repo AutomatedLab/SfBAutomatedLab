@@ -348,9 +348,9 @@ function Install-SfBLabRequirements
     Write-Host
     
     Write-Host "Installing Office Online Server on '$($wacServers.Name -join "', '")'"
-    $drive = Mount-LabIsoImage -ComputerName $wacServers -IsoPath $prerequisites.ISOs.OfficeOnline2016Iso -PassThru
+    $drive = Mount-LabIsoImage -ComputerName $wacServers -IsoPath $prerequisites.ISOs.OfficeOnline2016Iso -PassThru -SupressOutput
     Install-LabSoftwarePackage -ComputerName $wacServers -LocalPath "$($drive.DriveLetter)\setup.exe" -CommandLine "/config $($drive.DriveLetter)\Files\SetupSilent\config.xml"
-    Dismount-LabIsoImage -ComputerName $wacServers
+    Dismount-LabIsoImage -ComputerName $wacServers -SupressOutput
     
     Write-Host "Installing .net 3.5 on all lab machines"
     $machines = Get-LabMachine
@@ -369,9 +369,9 @@ function Install-SfBLabActiveDirectory
     $rootDc = Get-LabMachine -Role RootDC
     
     Write-Host "Installing SfB Management Tools on '$rootDc'"
-    $drive = Mount-LabIsoImage -ComputerName $rootDc -IsoPath $prerequisites.ISOs.SfB2015Iso -PassThru
+    $drive = Mount-LabIsoImage -ComputerName $rootDc -IsoPath $prerequisites.ISOs.SfB2015Iso -PassThru -SupressOutput
     Install-LabSoftwarePackage -ComputerName $rootDc -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstrapcore -NoDisplay
-    Dismount-LabIsoImage -ComputerName $rootDc
+    Dismount-LabIsoImage -ComputerName $rootDc -SupressOutput
 
     #The existing session must be removed to use the newly installed module
     Remove-LabPSSession -ComputerName $rootDc
@@ -409,12 +409,12 @@ function Install-SfbLabSfbComponents
     $frontEndServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*frontend*' }
     $1stFrontendServer = $frontEndServers | Select-Object -First 1
 
-    Write-Host "Restarting machine '$1stFrontendServer'..." -NoNewline
-    Restart-LabVM -ComputerName $1stFrontendServer -Wait
+    Write-Host "Restarting machine '$($frontEndServers -join ',')'..." -NoNewline
+    Restart-LabVM -ComputerName $frontEndServers -Wait
     Write-Host 'done'
     
     Write-Host "Installing SfB Management Tools on '$1stFrontendServer'"
-    $drive = Mount-LabIsoImage -ComputerName $1stFrontendServer -IsoPath $prerequisites.ISOs.SfB2015Iso -PassThru
+    $drive = Mount-LabIsoImage -ComputerName $1stFrontendServer -IsoPath $prerequisites.ISOs.SfB2015Iso -PassThru -SupressOutput
     
     Write-Host "Calling SfB 'setup.exe /bootstrapcore' on '$1stFrontendServer'"
     Install-LabSoftwarePackage -ComputerName $1stFrontendServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstrapcore -NoDisplay
@@ -422,14 +422,14 @@ function Install-SfbLabSfbComponents
     Write-Host "Calling SfB 'admintools.msi' on '$1stFrontendServer'"
     Install-LabSoftwarePackage -ComputerName $1stFrontendServer -LocalPath C:\Windows\System32\msiexec.exe -CommandLine "/i $($drive.DriveLetter)\Setup\amd64\Setup\admintools.msi ADDLOCAL=Feature_AdminTools REBOOT=ReallySuppress /qb! /L*v C:\Feature_AdminTools.log INSTALLDIR=""C:\Program Files\Skype for Business Server 2015\""" -UseCredSsp -NoDisplay
 
-    Write-Host "Calling SfB 'setup.exe //bootstraplocalmgmt' on '$1stFrontendServer'..."
+    Write-Host "Calling SfB 'setup.exe /bootstraplocalmgmt' on '$1stFrontendServer'..."
     Install-LabSoftwarePackage -ComputerName $1stFrontendServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstraplocalmgmt -NoDisplay
     Write-Host
     
     Copy-LabFileItem -Path $lab.Notes.SfBTopologyPath -ComputerName $1stFrontendServer
     Write-Host "SfB Topology copied to '$1stFrontendServer' (C:\)"
 
-    Dismount-LabIsoImage -ComputerName $1stFrontendServer
+    Dismount-LabIsoImage -ComputerName $1stFrontendServer -SupressOutput
 
     Write-Host "Removing PSSessions in order to use the newly installed modules"
     Remove-LabPSSession -ComputerName $1stFrontendServer
@@ -463,11 +463,14 @@ function Install-SfbLabSfbComponents
 
     foreach ($frontEndServer in $frontEndServers)
     {
-        $drive = Mount-LabIsoImage -ComputerName $frontEndServer -IsoPath $prerequisites.ISOs.SfB2015Iso -PassThru
+        $drive = Mount-LabIsoImage -ComputerName $frontEndServer -IsoPath $prerequisites.ISOs.SfB2015Iso -PassThru -SupressOutput
 
         Write-Host "Calling SfB 'setup.exe /bootstrapcore' on '$frontEndServer'"
         Install-LabSoftwarePackage -ComputerName $frontEndServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstrapcore -NoDisplay
         
+        Write-Host "Calling SfB 'setup.exe /bootstraplocalmgmt' on '$frontEndServer'..."
+        Install-LabSoftwarePackage -ComputerName $frontEndServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstraplocalmgmt -NoDisplay
+    
         #The existing session must be removed to use the newly installed module
         Remove-LabPSSession -ComputerName $frontEndServer
     
@@ -482,13 +485,19 @@ function Install-SfbLabSfbComponents
         Install-LabSoftwarePackage -ComputerName $frontEndServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstrap -UseCredSsp -NoDisplay -PassThru
         Write-Host 'done'
     
-        Dismount-LabIsoImage -ComputerName $frontEndServer
+        Dismount-LabIsoImage -ComputerName $frontEndServer -SupressOutput
         
-        Write-Host "Requesting and assigning certificate on '$frontEndServer'"
+        Write-Host "Requesting and assigning default certificate on '$frontEndServer'"
         $ca = Get-LabIssuingCA -DomainName $frontEndServer.DomainName
         Invoke-LabCommand -ComputerName $frontEndServer -ScriptBlock {
-            $cert = Request-CSCertificate -New -Type Default,WebServicesInternal,WebServicesExternal -CA $args[0] -Country "GE" -FriendlyName "Skype for Business Server 2015 Default certificate" -KeySize 2048 -PrivateKeyExportable $False -Organization "NA" -OU "NA" -DomainName "sip.sipdomain.com" -AllSipDomain -Verbose -Report C:\Request-CSCertificate.html
-            Set-CSCertificate -Type Default,WebServicesInternal,WebServicesExternal -Thumbprint $cert.Thumbprint -Confirm:$false -Report C:\Set-CSCertificate.html    
+            $cert = Request-CSCertificate -New -Type Default,WebServicesInternal,WebServicesExternal -CA $args[0] -FriendlyName "Skype for Business Server 2015 Default certificate" -KeySize 2048 -PrivateKeyExportable $false -Organization "NA" -OU "NA" -DomainName "sip.sipdomain.com" -AllSipDomain -Report C:\Request-CSCertificateDefault.html
+            Set-CSCertificate -Type Default,WebServicesInternal,WebServicesExternal -Thumbprint $cert.Thumbprint -Confirm:$false -Report C:\Set-CSCertificateDefault.html
+        } -ArgumentList $ca.CaPath -PassThru -UseCredSsp -NoDisplay
+        
+        Write-Host "Requesting and assigning OAuth certificate on '$frontEndServer'"
+        Invoke-LabCommand -ComputerName $frontEndServer -ScriptBlock {
+            $cert = Request-CSCertificate -New -Type OAuthTokenIssuer -CA $args[0] -FriendlyName "Skype for Business Server 2015 OAuthTokenIssuer" -KeySize 2048 -PrivateKeyExportable $true -AllSipDomain -Report C:\Request-CSCertificateOAuth.html
+            Set-CSCertificate -Identity Global -Type OAuthTokenIssuer -Thumbprint $cert.Thumbprint -Confirm:$false -Report C:\Set-CSCertificateOAuth.html
         } -ArgumentList $ca.CaPath -PassThru -UseCredSsp -NoDisplay
     }
     
@@ -498,7 +507,7 @@ function Install-SfbLabSfbComponents
     
         Write-Host "Starting Pool '$_'"
 
-        Invoke-LabCommand -ComputerName $1stFrontendServer -ScriptBlock { Start-CsPool -PoolFqdn $args[0] -Confirm:$false } -ArgumentList $_
+        Invoke-LabCommand -ComputerName $1stFrontendServer -ScriptBlock { Start-CsPool -PoolFqdn $args[0] -Confirm:$false } -ArgumentList $_ -UseCredSsp
 
     }
 }

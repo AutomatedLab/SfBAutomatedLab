@@ -407,7 +407,9 @@ function Install-SfbLabSfbComponents
     
     $lab = Get-Lab
     $frontEndServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*frontend*' }
+	$databaseServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*SqlServer*'} | Sort-Object -Property Name
     $1stFrontendServer = $frontEndServers | Select-Object -First 1
+	$firstDbServer = $databaseServers | Select-Object -First 1
 
     Write-Host "Restarting machine '$($frontEndServers -join ',')'..." -NoNewline
     Restart-LabVM -ComputerName $frontEndServers -Wait
@@ -420,7 +422,7 @@ function Install-SfbLabSfbComponents
     Install-LabSoftwarePackage -ComputerName $1stFrontendServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstrapcore -NoDisplay
     
     Write-Host "Calling SfB 'admintools.msi' on '$1stFrontendServer'"
-    Install-LabSoftwarePackage -ComputerName $1stFrontendServer -LocalPath C:\Windows\System32\msiexec.exe -CommandLine "/i $($drive.DriveLetter)\Setup\amd64\Setup\admintools.msi ADDLOCAL=Feature_AdminTools REBOOT=ReallySuppress /qb! /L*v C:\Feature_AdminTools.log INSTALLDIR=""C:\Program Files\Skype for Business Server 2015\""" -UseCredSsp -NoDisplay
+    Install-LabSoftwarePackage -ComputerName $1stFrontendServer -LocalPath C:\Windows\System32\msiexec.exe -CommandLine "/i $($drive.DriveLetter)\Setup\amd64\Setup\admintools.msi ADDLOCAL=Feature_AdminTools REBOOT=ReallySuppress /qb! /L*v C:\Feature_AdminTools.log INSTALLDIR=`"C:\Program Files\Skype for Business Server 2015\`"" -UseCredSsp -NoDisplay
 
     Write-Host "Calling SfB 'setup.exe /bootstraplocalmgmt' on '$1stFrontendServer'..."
     Install-LabSoftwarePackage -ComputerName $1stFrontendServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstraplocalmgmt -NoDisplay
@@ -435,11 +437,11 @@ function Install-SfbLabSfbComponents
     Remove-LabPSSession -ComputerName $1stFrontendServer
     
     Write-Host "Calling 'Install-CsDatabase'..." -NoNewline
-    Invoke-LabCommand -ComputerName $1stFrontendServer -ScriptBlock { Install-CsDatabase -CentralManagementDatabase -SqlServerFqdn sql1.domain.local } -UseCredSsp
+    Invoke-LabCommand -ComputerName $1stFrontendServer -ScriptBlock { Install-CsDatabase -CentralManagementDatabase -SqlServerFqdn ($args[0]) } -ArgumentList $firstDbServer.Fqdn -UseCredSsp
     Write-Host 'done'
     
     Write-Host "Calling 'Set-CsConfigurationStoreLocation'..." -NoNewline
-    Invoke-LabCommand -ComputerName $1stFrontendServer -ScriptBlock { Set-CsConfigurationStoreLocation -SqlServerFqdn sql1.domain.local } -UseCredSsp
+    Invoke-LabCommand -ComputerName $1stFrontendServer -ScriptBlock { Set-CsConfigurationStoreLocation -SqlServerFqdn ($args[0]) } -ArgumentList $firstDbServer.Fqdn -UseCredSsp
     Write-Host 'done'
 
     Write-Host

@@ -2,10 +2,9 @@
 
 How to use:
 
-$scriptFilePath = 'D:\SfBTest.ps1'
-$topologyFilePath = 'D:\export.tbxml'
+if (-not (Test-SfBLabRequirements))
+{
+    Set-SfBLabRequirements
+}
 
-$script = New-SfBLab -TopologyFilePath $topologyFilePath -LabName SfBTest2 -OutputScriptPath $scriptFilePath
-
-Invoke-SfBLabScript
-Invoke-SfBLabPostInstallations
+Start-SfBLabDeployment -LabName SfbTest1 -TopologyFilePath C:\Users\Raimund\Desktop\export.tbxml

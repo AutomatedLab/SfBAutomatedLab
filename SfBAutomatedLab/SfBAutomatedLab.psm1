@@ -53,8 +53,8 @@ function Start-SfBLabDeployment
 
         [Parameter(Mandatory)]
         [string]$LabName,
-
-        [switch]$PassThru
+        
+        [string]$OutputScriptPath
     )
 
     if (-not (Test-Path -Path $TopologyFilePath))
@@ -69,23 +69,20 @@ function Start-SfBLabDeployment
         return
     }
 
-    $script = New-SfBLab -TopologyFilePath $TopologyFilePath -LabName $LabName
-    
-    $scriptPath = '{0}\{1}.ps1' -f (Get-LabSourcesLocation), $LabName
-    Write-Host "Saving the AutomatedLab deployment script to '$scriptPath'"
-    $script | Out-File -FilePath $scriptPath -Force
-
-    if ($PassThru)
+    if (-not $OutputScriptPath)
     {
-        $script
+        $OutputScriptPath= '{0}\{1}.ps1' -f (Get-LabSourcesLocation), $LabName  
     }
+  
+    Write-Host "Saving the AutomatedLab deployment script to '$OutputScriptPath'"
+    New-SfBLab -TopologyFilePath $TopologyFilePath -LabName $LabName -OutputScriptPath $OutputScriptPath
 
     Write-Host
     Write-Host 'The AutomatedLab deployment script is ready. You can either invoke it right away or modify the script to further customize your lab.' -ForegroundColor Yellow
     Write-Host "Do you want to start the deployment now? Type 'Y' to start the deplyment or any other key to stop this script: " -ForegroundColor Yellow -NoNewline
     if ((Read-Host) -eq 'y')
     {
-        $script.Invoke()
+        Invoke-SfBLabScript
     }
     else
     {
@@ -284,7 +281,14 @@ function New-SfBLab
         $sb.AppendLine("Import-SfBTopology -Path '$((Get-SfBTopology).Path)'") | Out-Null
         
         $sb.AppendLine('Add-SfbClusterDnsRecords') | Out-Null
-        $sb.AppendLine('Add-SfbFileShares') | Out-Null    
+
+        $sb.AppendLine('Add-SfbFileShares') | Out-Null
+
+        $sb.AppendLine('Install-SfBLabRequirements') | Out-Null
+
+        $sb.AppendLine('Install-SfbLabActiveDirectory') | Out-Null
+
+        $sb.AppendLine('Install-SfbLabSfbComponents') | Out-Null
     
         $sb.AppendLine('Show-LabInstallationTime') | Out-Null
     }
@@ -300,7 +304,7 @@ function New-SfBLab
     Write-Host '# Please alter the script if required and call Invoke-SfBLabScript then    #'
     Write-Host '# The next steps are:                                                      #'
     Write-Host '# - Call Invoke-SfBLabScript (this may take one or two hours)              #'
-    Write-Host '# - Call Invoke-SfBLabPostInstallations (this may take an hour)            #'
+    Write-Host '# - Call Install-SfbLabSfbComponents (this may take an hour)               #'
     Write-Host '############################################################################'
     
     if ($PassThru)
@@ -407,9 +411,9 @@ function Install-SfbLabSfbComponents
     
     $lab = Get-Lab
     $frontEndServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*frontend*' }
-	$databaseServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*SqlServer*'} | Sort-Object -Property Name
+    $databaseServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*SqlServer*'} | Sort-Object -Property Name
     $1stFrontendServer = $frontEndServers | Select-Object -First 1
-	$firstDbServer = $databaseServers | Select-Object -First 1
+    $firstDbServer = $databaseServers | Select-Object -First 1
 
     Write-Host "Restarting machine '$($frontEndServers -join ',')'..." -NoNewline
     Restart-LabVM -ComputerName $frontEndServers -Wait
@@ -459,9 +463,12 @@ function Install-SfbLabSfbComponents
     Write-Host '#   Topology Builder. The topology is stored in c:\ on the 1st Frontned.   #'
     Write-Host '############################################################################'
     Write-Host '# Press enter to continue the deployment process after manually            #'
-    Write-Host '# publishing the topology                                                  #'    
+    Write-Host '# publishing the topology or press  CTRL + C to exit                       #'    
     Write-Host '############################################################################'
     Read-Host | Out-Null
+    Write-Host
+    Write-Host "SfbAutomatedLab is continuing the deployment..."
+    Write-Host
 
     foreach ($frontEndServer in $frontEndServers)
     {

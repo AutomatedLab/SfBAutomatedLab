@@ -496,7 +496,7 @@ function Install-SfbLabSfbComponents
     
         Dismount-LabIsoImage -ComputerName $frontEndServer -SupressOutput
         
-        Restart-Computer -ComputerName $frontEndServer -Wait
+        Restart-LabComputer -ComputerName $frontEndServer -Wait
         
         Write-Host "Requesting and assigning default certificate on '$frontEndServer'"
         $ca = Get-LabIssuingCA -DomainName $frontEndServer.DomainName

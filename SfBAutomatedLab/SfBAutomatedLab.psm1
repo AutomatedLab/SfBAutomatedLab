@@ -511,8 +511,21 @@ function Install-SfbLabSfbComponents
             Set-CSCertificate -Identity Global -Type OAuthTokenIssuer -Thumbprint $cert.Thumbprint -Confirm:$false -Report C:\Set-CSCertificateOAuth.html
         } -ArgumentList $ca.CaPath -PassThru -UseCredSsp -NoDisplay
     }
+}
+
+function Start-SfbLabPool
+{
+    $lab = Get-Lab -ErrorAction SilentlyContinue
+    if (-not $lab)
+    {
+        Write-Error "Lab in not imported. Use 'Import-Lab' first"
+        return
+    }
+    if (-not $prerequisites) { $script:prerequisites = Get-SfBLabRequirements }
     
     Import-SfBTopology -Path $lab.Notes.SfBTopologyPath
+
+    $1stFrontendServer = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*frontend*' } | Select-Object -First 1
     
     Get-SfBTopologyCluster | Select-Object -First 1 | Get-SfBTopologyMachine | Select-Object -ExpandProperty ClusterFqdn -Unique | ForEach-Object {
     

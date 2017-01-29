@@ -135,7 +135,7 @@ function New-SfBLab
     }
     else
     {
-        $script:prerequisites = Get-SfBLabRequirements
+        $script:prerequisites = Get-SfBLabRequirements -ErrorAction Stop
     }
     
     Write-Host '-------------------------------------------------------------'
@@ -353,7 +353,7 @@ function Install-SfBLabRequirements
     
     Write-Host "Installing Office Online Server on '$($wacServers.Name -join "', '")'"
     $drive = Mount-LabIsoImage -ComputerName $wacServers -IsoPath $prerequisites.ISOs.OfficeOnline2016Iso -PassThru -SupressOutput
-    Install-LabSoftwarePackage -ComputerName $wacServers -LocalPath "$($drive.DriveLetter)\setup.exe" -CommandLine "/config $($drive.DriveLetter)\Files\SetupSilent\config.xml"
+    Install-LabSoftwarePackage -ComputerName $wacServers -LocalPath "$($drive.DriveLetter)\setup.exe" -CommandLine "/config $($drive.DriveLetter)\Files\SetupSilent\config.xml" -UseShellExecute -Timeout 30 -NoDisplay
     Dismount-LabIsoImage -ComputerName $wacServers -SupressOutput
     
     Write-Host "Installing .net 3.5 on all lab machines"
@@ -374,7 +374,7 @@ function Install-SfBLabActiveDirectory
     
     Write-Host "Installing SfB Management Tools on '$rootDc'"
     $drive = Mount-LabIsoImage -ComputerName $rootDc -IsoPath $prerequisites.ISOs.SfB2015Iso -PassThru -SupressOutput
-    Install-LabSoftwarePackage -ComputerName $rootDc -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstrapcore -NoDisplay
+    Install-LabSoftwarePackage -ComputerName $rootDc -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstrapcore -Timeout 30 -UseShellExecute -NoDisplay
     Dismount-LabIsoImage -ComputerName $rootDc -SupressOutput
 
     #The existing session must be removed to use the newly installed module
@@ -423,13 +423,13 @@ function Install-SfbLabSfbComponents
     $drive = Mount-LabIsoImage -ComputerName $1stFrontendServer -IsoPath $prerequisites.ISOs.SfB2015Iso -PassThru -SupressOutput
     
     Write-Host "Calling SfB 'setup.exe /bootstrapcore' on '$1stFrontendServer'"
-    Install-LabSoftwarePackage -ComputerName $1stFrontendServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstrapcore -NoDisplay
+    Install-LabSoftwarePackage -ComputerName $1stFrontendServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstrapcore -UseShellExecute -Timeout 30 -NoDisplay
     
     Write-Host "Calling SfB 'admintools.msi' on '$1stFrontendServer'"
     Install-LabSoftwarePackage -ComputerName $1stFrontendServer -LocalPath C:\Windows\System32\msiexec.exe -CommandLine "/i $($drive.DriveLetter)\Setup\amd64\Setup\admintools.msi ADDLOCAL=Feature_AdminTools REBOOT=ReallySuppress /qb! /L*v C:\Feature_AdminTools.log INSTALLDIR=`"C:\Program Files\Skype for Business Server 2015\`"" -UseCredSsp -NoDisplay
 
     Write-Host "Calling SfB 'setup.exe /bootstraplocalmgmt' on '$1stFrontendServer'..."
-    Install-LabSoftwarePackage -ComputerName $1stFrontendServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstraplocalmgmt -NoDisplay
+    Install-LabSoftwarePackage -ComputerName $1stFrontendServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstraplocalmgmt -UseShellExecute -Timeout 30 -NoDisplay
     Write-Host
     
     Copy-LabFileItem -Path $lab.Notes.SfBTopologyPath -ComputerName $1stFrontendServer
@@ -475,10 +475,10 @@ function Install-SfbLabSfbComponents
         $drive = Mount-LabIsoImage -ComputerName $frontEndServer -IsoPath $prerequisites.ISOs.SfB2015Iso -PassThru -SupressOutput
 
         Write-Host "Calling SfB 'setup.exe /bootstrapcore' on '$frontEndServer'"
-        Install-LabSoftwarePackage -ComputerName $frontEndServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstrapcore -NoDisplay
+        Install-LabSoftwarePackage -ComputerName $frontEndServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstrapcore -UseShellExecute -Timeout 30 -NoDisplay
         
         Write-Host "Calling SfB 'setup.exe /bootstraplocalmgmt' on '$frontEndServer'..."
-        Install-LabSoftwarePackage -ComputerName $frontEndServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstraplocalmgmt -NoDisplay
+        Install-LabSoftwarePackage -ComputerName $frontEndServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstraplocalmgmt -UseShellExecute -Timeout 30 -NoDisplay
     
         #The existing session must be removed to use the newly installed module
         Remove-LabPSSession -ComputerName $frontEndServer
@@ -491,7 +491,7 @@ function Install-SfbLabSfbComponents
         Invoke-LabCommand -ComputerName $frontEndServer -ScriptBlock { Enable-CSReplica -Confirm:$false -Report C:\Enable-CSReplica.html } -UseCredSsp
 
         Write-Host "Calling SfB 'setup.exe /bootstrap' on '$frontEndServer'..." -NoNewline
-        Install-LabSoftwarePackage -ComputerName $frontEndServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstrap -UseCredSsp -NoDisplay -PassThru
+        Install-LabSoftwarePackage -ComputerName $frontEndServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstrap -UseCredSsp -UseShellExecute -Timeout 30 -NoDisplay -PassThru
         Write-Host 'done'
     
         Dismount-LabIsoImage -ComputerName $frontEndServer -SupressOutput

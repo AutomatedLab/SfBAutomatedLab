@@ -320,7 +320,7 @@ function Install-SfBLabRequirements
         Write-Error "Lab in not imported. Use 'Import-Lab' first"
         return
     }
-    if (-not $prerequisites) { $script:prerequisites = Get-SfBLabRequirements }
+    if (-not $prerequisites) { $script:prerequisites = Get-SfBLabRequirements -ErrorAction Stop }
     
     $labSources = Get-LabSourcesLocation
     $frontendServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*FrontEnd*' }
@@ -368,7 +368,7 @@ function Install-SfBLabActiveDirectory
         Write-Error "Lab in not imported. Use 'Import-Lab' first"
         return
     }
-    if (-not $prerequisites) { $script:prerequisites = Get-SfBLabRequirements }
+    if (-not $prerequisites) { $script:prerequisites = Get-SfBLabRequirements -ErrorAction Stop }
     
     $rootDc = Get-LabMachine -Role RootDC
     
@@ -407,7 +407,7 @@ function Install-SfbLabSfbComponents
         Write-Error "Lab in not imported. Use 'Import-Lab' first"
         return
     }
-    if (-not $prerequisites) { $script:prerequisites = Get-SfBLabRequirements }
+    if (-not $prerequisites) { $script:prerequisites = Get-SfBLabRequirements -ErrorAction Stop }
     
     $lab = Get-Lab
     $frontEndServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*frontend*' }
@@ -521,17 +521,23 @@ function Start-SfbLabPool
         Write-Error "Lab in not imported. Use 'Import-Lab' first"
         return
     }
-    if (-not $prerequisites) { $script:prerequisites = Get-SfBLabRequirements }
+    if (-not $prerequisites) { $script:prerequisites = Get-SfBLabRequirements -ErrorAction Stop }
     
     Import-SfBTopology -Path $lab.Notes.SfBTopologyPath
 
-    $1stFrontendServer = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*frontend*' } | Select-Object -First 1
+    $frontendServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*frontend*' }
+    $1stFrontendServer = $frontendServers | Select-Object -First 1
+    $frontendPool = Get-SfBTopologyCluster | Where-Object { ($_ | Get-SfBTopologyClusterService).RoleName -eq 'UserServices' }
+    
+    #Reset-CsPoolRegistrarState -PoolFqdn pool.domain.local -ResetType FullReset
+
+    Invoke-LabCommand -ActivityName 'Setting Sfb services startup type to manual' -ComputerName $frontendServers -ScriptBlock { Get-Service master, fta, rtc* | Set-Service -StartupType Manual }
     
     Get-SfBTopologyCluster | Select-Object -First 1 | Get-SfBTopologyMachine | Select-Object -ExpandProperty ClusterFqdn -Unique | ForEach-Object {
     
         Write-Host "Starting Pool '$_'"
 
-        Invoke-LabCommand -ComputerName $1stFrontendServer -ScriptBlock { Start-CsPool -PoolFqdn $args[0] -Confirm:$false } -ArgumentList $_ -UseCredSsp
+        Invoke-LabCommand -ComputerName $1stFrontendServer -ScriptBlock { Start-CsPool -PoolFqdn $args[0] -Confirm:$false } -ArgumentList $frontendPool.Fqdn -UseCredSsp
 
     }
 }
@@ -826,7 +832,8 @@ function Get-SfBLabRequirements
     }
     catch
     {
-        Write-Verbose 'No settings found in the registry'
+        Write-Error 'No settings found in the registry'
+        return
     }
 }
 

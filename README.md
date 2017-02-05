@@ -3,6 +3,10 @@ Building lab environments is a time-consuming task. First you are creating your 
 
 SfBAutomatedLab does it all for you. It reads the topology file (tbxml) created by the Topology Builder and creates all the machines defined there. It also sets up Active Directory with an Enterprise PKI and SQL Server, all according to what is defined in the topology file. After that, the SfB components are installed on the edge and frontend servers.
 
+### [1. Installation](https://github.com/AutomatedLab/SfBAutomatedLab/wiki/1.-Installation)
+### [2. Getting Started](https://github.com/AutomatedLab/SfBAutomatedLab/wiki/2.-Getting-Started)
+### [Version History](https://github.com/AutomatedLab/SfBAutomatedLab/wiki/Version-History)
+
 ##Requirements
 * [AutomatedLab 3.9 or higher]( https://github.com/AutomatedLab/AutomatedLab/releases)
 * Hyper-V running on Windows Server 2012 R2, 2016 or Windows 10

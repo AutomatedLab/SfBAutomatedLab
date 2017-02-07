@@ -26,8 +26,11 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
-  <ItemGroup />
   <ItemGroup>
+    <Folder Include="Sample Topologies\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Sample Topologies\Contoso.tbxml" />
     <Compile Include="SfBAutomatedLab.psd1" />
     <Compile Include="SfBAutomatedLab.psm1" />
     <Compile Include="SfBAutomatedLabInternals.psm1" />

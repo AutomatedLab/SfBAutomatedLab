@@ -3,8 +3,9 @@ Building lab environments is a time-consuming task. First you are creating your 
 
 SfBAutomatedLab does it all for you. It reads the topology file (tbxml) created by the Topology Builder and creates all the machines defined there. It also sets up Active Directory with an Enterprise PKI and SQL Server, all according to what is defined in the topology file. After that, the SfB components are installed on the edge and frontend servers.
 
-### [1. Installation](https://github.com/AutomatedLab/SfBAutomatedLab/wiki/1.-Installation)
-### [2. Getting Started](https://github.com/AutomatedLab/SfBAutomatedLab/wiki/2.-Getting-Started)
+### [1. Installation of SfbAutomatedLab](https://github.com/AutomatedLab/SfBAutomatedLab/wiki/1.-Installation-of-SfbAutomatedLab)
+### [2. Getting Ready for the Automated Deployment](https://github.com/AutomatedLab/SfBAutomatedLab/wiki/2.-Getting-Ready-for-the-Automated-Deployment)
+### [3. Starting an Automated Deployment](https://github.com/AutomatedLab/SfBAutomatedLab/wiki/3.-Starting-an-Automated-Deployment)
 ### [Version History](https://github.com/AutomatedLab/SfBAutomatedLab/wiki/Version-History)
 
 ##Requirements

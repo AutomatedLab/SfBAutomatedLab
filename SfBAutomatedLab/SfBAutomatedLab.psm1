@@ -336,17 +336,17 @@ function Install-SfBLabActiveDirectory
 
     Write-Host
     Write-Host "Preparing AD Schema"
-    Invoke-LabCommand -ComputerName $rootDc -ScriptBlock { Install-CSAdServerSchema -Confirm:$false -Report C:\SfBSchemaPrep.html } -UseCredSsp -NoDisplay
+    Invoke-LabCommand -ComputerName $rootDc -ScriptBlock { Install-CSAdServerSchema -Confirm:$false -Report C:\SfBSchemaPrep.html } -NoDisplay
 
     Write-Host "Preparing AD Forest"
-    Invoke-LabCommand -ComputerName $rootDc -ScriptBlock { Enable-CSAdForest -Confirm:$false -Report C:\SfBForestPrep.html } -UseCredSsp -NoDisplay
+    Invoke-LabCommand -ComputerName $rootDc -ScriptBlock { Enable-CSAdForest -Confirm:$false -Report C:\SfBForestPrep.html } -NoDisplay
 
     Write-Host "Preparing AD Domain"
-    Invoke-LabCommand -ComputerName $rootDc -ScriptBlock { Enable-CSAdDomain -Confirm:$false -Report C:\SfBDomainPrep.html } -UseCredSsp -NoDisplay
+    Invoke-LabCommand -ComputerName $rootDc -ScriptBlock { Enable-CSAdDomain -Confirm:$false -Report C:\SfBDomainPrep.html } -NoDisplay
 
     Write-Host "Adding Install user to CSAdministrators"
     $installUser = ((Get-Lab).Domains | Where-Object Name -eq $rootDc.DomainName).Administrator.UserName
-    Invoke-LabCommand -ComputerName $rootDc -ScriptBlock { Get-ADGroup CSAdministrator | Add-ADGroupMember -Members $installUser } -UseCredSsp -Variable (Get-Variable -Name installUser) -NoDisplay
+    Invoke-LabCommand -ComputerName $rootDc -ScriptBlock { Get-ADGroup CSAdministrator | Add-ADGroupMember -Members $installUser } -Variable (Get-Variable -Name installUser) -NoDisplay
 
     #TODO: Creating DNS entries
 
@@ -395,11 +395,11 @@ function Install-SfbLabSfbComponents
     Remove-LabPSSession -ComputerName $1stFrontendServer
     
     Write-Host "Calling 'Install-CsDatabase'..." -NoNewline
-    Invoke-LabCommand -ComputerName $1stFrontendServer -ScriptBlock { Install-CsDatabase -CentralManagementDatabase -SqlServerFqdn ($args[0]) } -ArgumentList $firstDbServer.Fqdn -UseCredSsp
+    Invoke-LabCommand -ComputerName $1stFrontendServer -ScriptBlock { Install-CsDatabase -CentralManagementDatabase -SqlServerFqdn ($args[0]) } -ArgumentList $firstDbServer.Fqdn
     Write-Host 'done'
     
     Write-Host "Calling 'Set-CsConfigurationStoreLocation'..." -NoNewline
-    Invoke-LabCommand -ComputerName $1stFrontendServer -ScriptBlock { Set-CsConfigurationStoreLocation -SqlServerFqdn ($args[0]) } -ArgumentList $firstDbServer.Fqdn -UseCredSsp
+    Invoke-LabCommand -ComputerName $1stFrontendServer -ScriptBlock { Set-CsConfigurationStoreLocation -SqlServerFqdn ($args[0]) } -ArgumentList $firstDbServer.Fqdn
     Write-Host 'done'
 
     Write-Host
@@ -438,14 +438,14 @@ function Install-SfbLabSfbComponents
         Remove-LabPSSession -ComputerName $frontEndServer
     
         Write-Host "Calling 'Export-CsConfiguration' on '$frontEndServer'"
-        Invoke-LabCommand -ComputerName $frontEndServer -ScriptBlock { Export-CsConfiguration -FileName C:\CsConfigData.zip } -UseCredSsp -NoDisplay
+        Invoke-LabCommand -ComputerName $frontEndServer -ScriptBlock { Export-CsConfiguration -FileName C:\CsConfigData.zip } -NoDisplay
         Write-Host "Calling 'Import-CSConfiguration' on '$frontEndServer'"
-        Invoke-LabCommand -ComputerName $frontEndServer -ScriptBlock { Import-CSConfiguration -FileName C:\CsConfigData.zip -LocalStore } -UseCredSsp -NoDisplay
+        Invoke-LabCommand -ComputerName $frontEndServer -ScriptBlock { Import-CSConfiguration -FileName C:\CsConfigData.zip -LocalStore } -NoDisplay
         Write-Host "Calling 'Enable-CSReplica' on '$frontEndServer'"
-        Invoke-LabCommand -ComputerName $frontEndServer -ScriptBlock { Enable-CSReplica -Confirm:$false -Report C:\Enable-CSReplica.html } -UseCredSsp
+        Invoke-LabCommand -ComputerName $frontEndServer -ScriptBlock { Enable-CSReplica -Confirm:$false -Report C:\Enable-CSReplica.html }
 
         Write-Host "Calling SfB 'setup.exe /bootstrap' on '$frontEndServer'..." -NoNewline
-        Install-LabSoftwarePackage -ComputerName $frontEndServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstrap -UseCredSsp -UseShellExecute -Timeout 30 -NoDisplay -PassThru
+        Install-LabSoftwarePackage -ComputerName $frontEndServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstrap -UseShellExecute -Timeout 30 -NoDisplay -PassThru
         Write-Host 'done'
     
         Dismount-LabIsoImage -ComputerName $frontEndServer -SupressOutput
@@ -457,13 +457,13 @@ function Install-SfbLabSfbComponents
         Invoke-LabCommand -ComputerName $frontEndServer -ScriptBlock {
             $cert = Request-CSCertificate -New -Type Default,WebServicesInternal,WebServicesExternal -CA $args[0] -FriendlyName "Skype for Business Server 2015 Default certificate" -KeySize 2048 -PrivateKeyExportable $false -Organization "NA" -OU "NA" -DomainName "sip.sipdomain.com" -AllSipDomain -Report C:\Request-CSCertificateDefault.html
             Set-CSCertificate -Type Default,WebServicesInternal,WebServicesExternal -Thumbprint $cert.Thumbprint -Confirm:$false -Report C:\Set-CSCertificateDefault.html
-        } -ArgumentList $ca.CaPath -PassThru -UseCredSsp -NoDisplay
+        } -ArgumentList $ca.CaPath -PassThru -NoDisplay
         
         Write-Host "Requesting and assigning OAuth certificate on '$frontEndServer'"
         Invoke-LabCommand -ComputerName $frontEndServer -ScriptBlock {
             $cert = Request-CSCertificate -New -Type OAuthTokenIssuer -CA $args[0] -FriendlyName "Skype for Business Server 2015 OAuthTokenIssuer" -KeySize 2048 -PrivateKeyExportable $true -AllSipDomain -Report C:\Request-CSCertificateOAuth.html
             Set-CSCertificate -Identity Global -Type OAuthTokenIssuer -Thumbprint $cert.Thumbprint -Confirm:$false -Report C:\Set-CSCertificateOAuth.html
-        } -ArgumentList $ca.CaPath -PassThru -UseCredSsp -NoDisplay
+        } -ArgumentList $ca.CaPath -PassThru -NoDisplay
     }
 }
 
@@ -491,7 +491,7 @@ function Start-SfbLabPool
     
         Write-Host "Starting Pool '$_'"
 
-        Invoke-LabCommand -ComputerName $1stFrontendServer -ScriptBlock { Start-CsPool -PoolFqdn $args[0] -Confirm:$false } -ArgumentList $frontendPool.Fqdn -UseCredSsp
+        Invoke-LabCommand -ComputerName $1stFrontendServer -ScriptBlock { Start-CsPool -PoolFqdn $args[0] -Confirm:$false } -ArgumentList $frontendPool.Fqdn
 
     }
 }
@@ -615,6 +615,9 @@ function Add-SfBLabExternalNetworks
         {
             throw 'Lab deployment aborted'
         }
+        
+        Write-Host "You have choose option '$($choices[$result].Label.Substring(1))'"
+        Write-Host
             
         if ($result -lt $externalSwitches.Count)
         {
@@ -676,7 +679,9 @@ function Add-SfBLabDomains
     $i = 1
     foreach ($domain in $domains)
     {
-        $numberOfDcs = Read-Host -Prompt "How many Domain Controllers do you want to have for domain '$($domain)'?"
+        $numberOfDcs = Read-Host -Prompt "How many Domain Controllers do you want to have for domain '$domain'?"
+        
+        Write-Host "You have chosen $numberOfDcs domain controllers for domain '$domain'"
 
         foreach ($i in (1..$numberOfDcs))
         {
@@ -691,7 +696,7 @@ function Add-SfBLabDomains
             else
             {
                 $machine = New-Object PSObject -Property @{ DomainRole = $domainRole; FQDN = $fqdn }
-                $machines.Add($machine)
+                $machines.Add($machine) | Out-Null
             }
         }
     }

@@ -5,7 +5,8 @@ SfBAutomatedLab does it all for you. It reads the topology file (tbxml) created 
 
 ### [1. Installation of SfbAutomatedLab](https://github.com/AutomatedLab/SfBAutomatedLab/wiki/1.-Installation-of-SfbAutomatedLab)
 ### [2. Getting Ready for the Automated Deployment](https://github.com/AutomatedLab/SfBAutomatedLab/wiki/2.-Getting-Ready-for-the-Automated-Deployment)
-### [3. Starting an Automated Deployment](https://github.com/AutomatedLab/SfBAutomatedLab/wiki/3.-Starting-an-Automated-Deployment)
+### [3. Starting an Automated Deployment (Part 1)](https://github.com/AutomatedLab/SfBAutomatedLab/wiki/3.-Starting-an-Automated-Deployment-(Part-1))
+### [4. Starting an Automated Deployment (Part 2)](https://github.com/AutomatedLab/SfBAutomatedLab/wiki/3.-Starting-an-Automated-Deployment-(Part-2))
 ### [Version History](https://github.com/AutomatedLab/SfBAutomatedLab/wiki/Version-History)
 
 ##Requirements

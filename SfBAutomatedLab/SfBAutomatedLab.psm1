@@ -235,6 +235,7 @@ function New-SfBLab
         $sb.AppendLine("Import-SfBTopology -Path '$((Get-SfBTopology).Path)'") | Out-Null
         
         $sb.AppendLine('Add-SfbClusterDnsRecords') | Out-Null
+		$sb.AppendLine('Add-SfBEdgeServerDnsRecords') | Out-Null		
 
         $sb.AppendLine('Add-SfbFileShares') | Out-Null
 
@@ -380,7 +381,7 @@ function Install-SfbLabSfbComponents
     Install-LabSoftwarePackage -ComputerName $1stFrontendServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstrapcore -UseShellExecute -Timeout 30 -NoDisplay
     
     Write-Host "Calling SfB 'admintools.msi' on '$1stFrontendServer'"
-    Install-LabSoftwarePackage -ComputerName $1stFrontendServer -LocalPath C:\Windows\System32\msiexec.exe -CommandLine "/i $($drive.DriveLetter)\Setup\amd64\Setup\admintools.msi ADDLOCAL=Feature_AdminTools REBOOT=ReallySuppress /qb! /L*v C:\Feature_AdminTools.log INSTALLDIR=`"C:\Program Files\Skype for Business Server 2015\`"" -UseCredSsp -NoDisplay
+    Install-LabSoftwarePackage -ComputerName $1stFrontendServer -LocalPath C:\Windows\System32\msiexec.exe -CommandLine "/i $($drive.DriveLetter)\Setup\amd64\Setup\admintools.msi ADDLOCAL=Feature_AdminTools REBOOT=ReallySuppress /qb! /L*v C:\Feature_AdminTools.log INSTALLDIR=`"C:\Program Files\Skype for Business Server 2015\`"" -NoDisplay
 
     Write-Host "Calling SfB 'setup.exe /bootstraplocalmgmt' on '$1stFrontendServer'..."
     Install-LabSoftwarePackage -ComputerName $1stFrontendServer -LocalPath "$($drive.DriveLetter)\Setup\amd64\Setup.exe" -CommandLine /bootstraplocalmgmt -UseShellExecute -Timeout 30 -NoDisplay
@@ -740,6 +741,21 @@ function Add-SfBClusterDnsRecords
 
             Invoke-LabCommand -ActivityName "AddClusterDnsRecord ($clusterName -> $($labMachine.IpV4Address))" -ComputerName $dc -ScriptBlock ([scriptblock]::Create($dnsCmd))
         }
+    }
+}
+
+function Add-SfBEdgeServerDnsRecords
+{
+    $edgeServers = Get-SfBTopologyCluster | Get-SfBTopologyMachine | Where-Object Roles -like *Edge*
+    
+    foreach ($edgeServer in ($edgeServers | Where-Object { $_.NetInterface.InterfaceSide -eq 'Internal' }))
+    {
+        $domainName = $edgeServer.Fqdn.Substring($edgeServer.Fqdn.IndexOf('.') + 1)
+        $dc = Get-LabMachine -Role RootDC | Where-Object DomainName -eq $domainName
+        $name = $edgeServer.Fqdn.Substring(0, $edgeServer.Fqdn.IndexOf('.'))
+        $ipAddress = $edgeServers[0].NetInterface | Where-Object InterfaceSide -eq Internal | Select-Object -ExpandProperty IPAddress
+        
+        Invoke-LabCommand -ActivityName "AddEdgeServerDnsRecord ($name -> $ipAddress)" -ComputerName $dc -ScriptBlock ([scriptblock]::Create($dnsCmd))
     }
 }
 

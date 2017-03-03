@@ -235,7 +235,7 @@ function New-SfBLab
         $sb.AppendLine("Import-SfBTopology -Path '$((Get-SfBTopology).Path)'") | Out-Null
         
         $sb.AppendLine('Add-SfbClusterDnsRecords') | Out-Null
-		$sb.AppendLine('Add-SfBEdgeServerDnsRecords') | Out-Null		
+        $sb.AppendLine('Add-SfBEdgeServerDnsRecords') | Out-Null		
 
         $sb.AppendLine('Add-SfbFileShares') | Out-Null
 
@@ -245,7 +245,7 @@ function New-SfBLab
 
         $sb.AppendLine('Install-SfbLabSfbComponents') | Out-Null
     
-        $sb.AppendLine('Show-LabInstallationTime') | Out-Null
+        $sb.AppendLine('Show-LabDeploymentSummary -Detailed') | Out-Null
     }
 
     [scriptblock]::Create($sb.ToString()) | Out-File -FilePath $OutputScriptPath -Width 5000

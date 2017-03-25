@@ -110,7 +110,9 @@ function New-SfBLab
     Add-SfBLabInternalNetworks
     Add-SfBLabExternalNetworks
     
-    Add-SfBLabDomains    
+    Add-SfBLabDomains
+    
+    Add-SfBLabOfficeClients
     
     Write-Host "Found $($machines.Count) machines in the topology file"
     foreach ($machine in $machines)
@@ -190,33 +192,38 @@ function New-SfBLab
                 
                 $sb.AppendLine($line) | Out-Null
             }
-            
+
+            $os = if ($machine.IsClient)
+            { 'Windows 10 Enterprise' }
+            else
+            { 'Windows Server 2012 R2 SERVERDATACENTER' }
+
             if (($machine.Roles -band [SfBAutomatedLab.SfBServerRole]::Edge) -eq [SfBAutomatedLab.SfBServerRole]::Edge)
             {
-                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -NetworkAdapter $netAdapter -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{1}" }}' -f $name, $machine.Roles
+                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -NetworkAdapter $netAdapter -OperatingSystem "{1}" -Notes @{{ SfBRoles = "{2}" }}' -f $name, $os, $machine.Roles
             }
             elseif(($machine.Roles -band [SfBAutomatedLab.SfBServerRole]::SqlServer) -eq [SfBAutomatedLab.SfBServerRole]::SqlServer -and [bool]($machine.PSobject.Properties.Name -eq "AlwaysOnPartner"))
             {				
-                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -NetworkAdapter $netAdapter -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{3}"; AlwaysOnPartner = "{4}" }}' -f $name, $domain, $roles, $machine.Roles,$machine.AlwaysOnPartner
+                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -NetworkAdapter $netAdapter -DomainName {1}{2} -OperatingSystem "{3}" -Notes @{{ SfBRoles = "{4}"; AlwaysOnPartner = "{5}" }}' -f $name, $domain, $roles, $os, $machine.Roles,$machine.AlwaysOnPartner
             }
             else
             {
-                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -NetworkAdapter $netAdapter -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{3}" }}' -f $name, $domain, $roles, $machine.Roles
+                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -NetworkAdapter $netAdapter -DomainName {1}{2} -OperatingSystem "{3}" -Notes @{{ SfBRoles = "{4}" }}' -f $name, $domain, $roles, $os, $machine.Roles
             }
         }
         else
         {
             if ($machine.IsEdgeServer)
             {
-                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{1}" }}' -f $name, $machine.Roles
+                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -OperatingSystem "{1}" -Notes @{{ SfBRoles = "{2}" }}' -f $name, $os, $machine.Roles
             }
             elseif(($machine.Roles -band [SfBAutomatedLab.SfBServerRole]::SqlServer) -eq [SfBAutomatedLab.SfBServerRole]::SqlServer -and [bool]($machine.PSobject.Properties.Name -eq "AlwaysOnPartner"))
             {				
-                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{3}"; AlwaysOnPartner = "{4}" }}' -f $name, $domain, $roles, $machine.Roles,$machine.AlwaysOnPartner
+                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -DomainName {1}{2} -OperatingSystem "{3}" -Notes @{{ SfBRoles = "{4}"; AlwaysOnPartner = "{5}" }}' -f $name, $domain, $roles, $os, $machine.Roles,$machine.AlwaysOnPartner
             }
             else
             {
-                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -DomainName {1}{2} -OperatingSystem "Windows Server 2012 R2 SERVERDATACENTER" -Notes @{{ SfBRoles = "{3}" }}' -f $name, $domain, $roles, $machine.Roles
+                $line = 'Add-LabMachineDefinition -Name {0} -Memory 2GB -Network $internal -DomainName {1}{2} -OperatingSystem "{3}" -Notes @{{ SfBRoles = "{4}" }}' -f $name, $domain, $roles, $os, $machine.Roles
             }
         }
         $sb.AppendLine($line ) | Out-Null
@@ -705,6 +712,36 @@ function Add-SfBLabDomains
     Write-Host
 }
 
+function Add-SfBLabOfficeClients
+{
+    $domains = Get-SfBTopologyActiveDirectoryDomains
+    Write-Host "Domains found in the topology: $($domains)"
+
+    Write-Host
+    $i = 1
+    foreach ($domain in $domains)
+    {
+        $numberOfOfficeClients = Read-Host -Prompt "How many Office 2016 Clients do you want to have in domain '$domain'?"
+        
+        Write-Host "You have chosen $numberOfOfficeClients Office 2016 Clients to be added to domain '$domain'"
+
+        foreach ($i in (1..$numberOfOfficeClients))
+        {
+            $fqdn = "Client$i.$($domain)"
+            $role = 'Office2016'
+            
+            $machine = New-Object PSObject -Property @{ 
+                DomainRole = $role
+                FQDN = $fqdn
+                IsClient = $true
+            }
+            $machines.Add($machine) | Out-Null
+        }
+    }
+    
+    Write-Host
+}
+
 function Add-SfBLabFundamentals
 {
     $sb.AppendLine(('$labName = "{0}"' -f $LabName)) | Out-Null
@@ -713,6 +750,7 @@ function Add-SfBLabFundamentals
     $line = 'New-LabDefinition -Name $labName -DefaultVirtualizationEngine HyperV -Notes @{{ SfBTopologyPath = "{0}" }}' -f $TopologyFilePath
     $sb.AppendLine($line) | Out-Null
     $sb.AppendLine("Add-LabIsoImageDefinition -Name SQLServer2014 -Path $($prerequisites.ISOs.SqlServer2014)") | Out-Null
+    $sb.AppendLine("Add-LabIsoImageDefinition -Name Office2016 -Path $($prerequisites.ISOs.Office2016)") | Out-Null
 
     Write-Host "Setting default installation credentials for machines to user 'Install' with password 'Somepass1'"
     $sb.AppendLine('Set-LabInstallationCredential -Username Install -Password Somepass1') | Out-Null

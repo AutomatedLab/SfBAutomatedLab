@@ -34,7 +34,20 @@ function Start-SfBLabDeployment
     Write-Host
     Write-Host 'The AutomatedLab deployment script is ready. You can either invoke it right away or modify the script to further customize your lab.' -ForegroundColor Yellow
     Write-Host "Do you want to start the deployment now? Type 'Y' to start the deplyment or any other key to stop this script: " -ForegroundColor Yellow -NoNewline
-    if ((Read-Host) -eq 'y')
+    
+    $startScript = if ($global:SfBALTestMode -eq 2)
+    {
+        $true
+    }
+    else
+    {
+        if ((Read-Host) -eq 'y')
+        {
+            $true    
+        }
+    }
+
+    if ($startScript)
     {
         Invoke-SfBLabScript
     }
@@ -111,6 +124,8 @@ function New-SfBLab
     Add-SfBLabExternalNetworks
     
     Add-SfBLabDomains
+
+    Add-SfBLabExchangeServers
     
     Add-SfBLabOfficeClients
     
@@ -194,9 +209,9 @@ function New-SfBLab
             }
 
             $os = if ($machine.IsClient)
-            { 'Windows 10 Enterprise' }
+            { $PSCmdlet.MyInvocation.MyCommand.Module.PrivateData.OS.Client }
             else
-            { 'Windows Server 2012 R2 SERVERDATACENTER' }
+            { $PSCmdlet.MyInvocation.MyCommand.Module.PrivateData.OS.Server }
 
             if (($machine.Roles -band [SfBAutomatedLab.SfBServerRole]::Edge) -eq [SfBAutomatedLab.SfBServerRole]::Edge)
             {
@@ -284,7 +299,6 @@ function Install-SfBLabRequirements
     }
     if (-not $prerequisites) { $script:prerequisites = Get-SfBLabRequirements -ErrorAction Stop }
     
-    $labSources = Get-LabSourcesLocation
     $frontendServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*FrontEnd*' }
     $edgeServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*Edge*' }
     $wacServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*WacService*' }
@@ -300,18 +314,37 @@ function Install-SfBLabRequirements
     Restart-LabVM -ComputerName $wacServers -Wait
     
     Write-Host
+    
     foreach ($requiredWindowsFix in $prerequisites.RequiredWindowsFixes.GetEnumerator())
     {
+        $jobs = @()
         Write-Host "Installing required fix on Frontend Servers '$($requiredWindowsFix.Key)' on Frontend Servers"
-        Install-LabSoftwarePackage -ComputerName $frontendServers -Path $requiredWindowsFix.Value -CommandLine /quiet
+        $jobs += Install-LabSoftwarePackage -ComputerName $frontendServers -Path $requiredWindowsFix.Value -CommandLine /quiet -AsJob -PassThru
         
         Write-Host "Installing required fix on Frontend Servers '$($requiredWindowsFix.Key)' on Edge Servers"
-        Install-LabSoftwarePackage -ComputerName $edgeServers -Path $requiredWindowsFix.Value -CommandLine /quiet
+        $jobs += Install-LabSoftwarePackage -ComputerName $edgeServers -Path $requiredWindowsFix.Value -CommandLine /quiet -AsJob -PassThru
         
         Write-Host "Installing required fix on Frontend Servers '$($requiredWindowsFix.Key)' on Office Online Servers"
-        Install-LabSoftwarePackage -ComputerName $wacServers -Path $requiredWindowsFix.Value -CommandLine /quiet
+        $jobs += Install-LabSoftwarePackage -ComputerName $wacServers -Path $requiredWindowsFix.Value -CommandLine /quiet -AsJob -PassThru
+        
+        $jobs | Wait-Job | Out-Null
+        
+        Write-Host "Installation of '$requiredWindowsFix' finished"
     }
     Write-Host
+    
+    Write-Host 'Installing SilverLight on Frontend and Edge Servers...'
+    
+    $silverLightDownloadUrl = $PSCmdlet.MyInvocation.MyCommand.Module.PrivateData.DownloadUrls.SilverLight
+    $silverLightPath = "$labSources\SoftwarePackages\Silverlight_x64.exe"
+    Get-LabInternetFile -Uri $silverLightDownloadUrl -Path $silverLightPath
+    
+    $jobs = @()
+    Install-LabSoftwarePackage -Path $SilverLightPath -CommandLine '/q /doNotRequireDRMPrompt /ignorewarnings' -ComputerName $edgeServers -AsJob -PassThru
+    Install-LabSoftwarePackage -Path $SilverLightPath -CommandLine '/q /doNotRequireDRMPrompt /ignorewarnings' -ComputerName $frontendServers -AsJob -PassThru
+    $jobs | Wait-Job | Out-Null
+    
+    Write-Host 'finished installing SilverLight on Frontend and Edge Servers'
     
     Write-Host "Installing Office Online Server on '$($wacServers.Name -join "', '")'"
     $drive = Mount-LabIsoImage -ComputerName $wacServers -IsoPath $prerequisites.ISOs.OfficeOnline2016Iso -PassThru -SupressOutput
@@ -536,7 +569,14 @@ function Add-SfBLabInternalNetworks
         
         if (-not $internalIp.Prefix)
         {
-            $internalIp.Prefix = Read-Host -Prompt "The IP address $($internalIp.IPAddress) is defined. What is the subnet prefix, for example 24 for 255.255.255.0?"
+            if ($global:SfBALTestMode -gt 0)
+            {
+                $internalIp.Prefix = 24
+            }
+            else
+            {
+                $internalIp.Prefix = Read-Host -Prompt "The IP address $($internalIp.IPAddress) is defined. What is the subnet prefix, for example 24 for 255.255.255.0?"
+            }
             $script:discoveredNetworks += [AutomatedLab.IPNetwork]"$($internalIp.IPAddress)/$($internalIp.Prefix)"
         }
 
@@ -557,7 +597,7 @@ function Add-SfBLabInternalNetworks
     foreach ($network in $internalNetworks)
     {
         Write-Host (">> '{0}-{1}'. The host adapter's IP is {2}/{3}" -f $labName, $i, $network.Network, $network.Cidr)
-        $line = '$internal = Add-LabVirtualNetworkDefinition -Name {0}-{1} -AddressSpace {2}/{3} -PassThru' -f $labName, $i, $network.Network, $network.Cidr
+        $line = '$internal = Add-LabVirtualNetworkDefinition -Name "{0}-{1}" -AddressSpace {2}/{3} -PassThru' -f $labName, $i, $network.Network, $network.Cidr
         $sb.AppendLine($line) | Out-Null
     }
     
@@ -590,7 +630,14 @@ function Add-SfBLabExternalNetworks
         
         if (-not $externalIp.Prefix)
         {
-            $externalIp.Prefix = Read-Host -Prompt "The IP address $($externalIp.IPAddress) is defined. What is the subnet prefix, for example 24 for 255.255.255.0?"
+            if ($global:SfBALTestMode -gt 0)
+            {
+                $externalIp.Prefix = 24
+            }
+            else
+            {
+                $externalIp.Prefix = Read-Host -Prompt "The IP address $($externalIp.IPAddress) is defined. What is the subnet prefix, for example 24 for 255.255.255.0?"
+            }
             $script:discoveredNetworks += [AutomatedLab.IPNetwork]"$($externalIp.IPAddress)/$($externalIp.Prefix)"
         }
     }
@@ -631,7 +678,7 @@ function Add-SfBLabExternalNetworks
         {
             $externalSwitch = $externalSwitches[$result]
             $externalAdapter = Get-NetAdapter -Physical | Where-Object InterfaceDescription -eq $externalSwitch.NetAdapterInterfaceDescription
-            $sb.AppendLine(("`$external = Add-LabVirtualNetworkDefinition -Name {0} -HyperVProperties @{{ SwitchType = 'External'; AdapterName = '{1}' }} -PassThru" -f $externalSwitch.Name, $externalAdapter.Name)) | Out-Null
+            $sb.AppendLine(("`$external = Add-LabVirtualNetworkDefinition -Name '{0}' -HyperVProperties @{{ SwitchType = 'External'; AdapterName = '{1}' }} -PassThru" -f $externalSwitch.Name, $externalAdapter.Name)) | Out-Null
                 
         }
         else
@@ -687,7 +734,14 @@ function Add-SfBLabDomains
     $i = 1
     foreach ($domain in $domains)
     {
-        $numberOfDcs = Read-Host -Prompt "How many Domain Controllers do you want to have for domain '$domain'?"
+        $numberOfDcs = if ($global:SfBALTestMode -gt 0)
+        {
+            1
+        }
+        else
+        {
+            Read-Host -Prompt "How many Domain Controllers do you want to have for domain '$domain'?"
+        }
         
         Write-Host "You have chosen $numberOfDcs domain controllers for domain '$domain'"
 
@@ -721,7 +775,14 @@ function Add-SfBLabOfficeClients
     $i = 1
     foreach ($domain in $domains)
     {
-        $numberOfOfficeClients = Read-Host -Prompt "How many Office 2016 Clients do you want to have in domain '$domain'?"
+        $numberOfOfficeClients = if ($global:SfBALTestMode -gt 0)
+        {
+            1
+        }
+        else
+        {
+            Read-Host -Prompt "How many Office 2016 Clients do you want to have in domain '$domain'?"
+        }
         
         Write-Host "You have chosen $numberOfOfficeClients Office 2016 Clients to be added to domain '$domain'"
 
@@ -734,6 +795,43 @@ function Add-SfBLabOfficeClients
                 DomainRole = $role
                 FQDN = $fqdn
                 IsClient = $true
+            }
+            $machines.Add($machine) | Out-Null
+        }
+    }
+    
+    Write-Host
+}
+
+function Add-SfBLabExchangeServers
+{
+    $domains = Get-SfBTopologyActiveDirectoryDomains
+    Write-Host "Domains found in the topology: $($domains)"
+
+    Write-Host
+    $i = 1
+    foreach ($domain in $domains)
+    {
+        $numberOfExchangeServers = if ($global:SfBALTestMode -gt 0)
+        {
+            1
+        }
+        else
+        {
+            Read-Host -Prompt "How many Exchange 2016 Servers do you want to have in domain '$domain'?"
+        }
+        
+        Write-Host "You have chosen $numberOfExchangeServers Office 2016 Clients to be added to domain '$domain'"
+
+        foreach ($i in (1..$numberOfExchangeServers))
+        {
+            $fqdn = "Exchange$i.$($domain)"
+            $role = 'Exchange2016'
+            
+            $machine = New-Object PSObject -Property @{ 
+                DomainRole = $role
+                FQDN = $fqdn
+                IsClient = $false
             }
             $machines.Add($machine) | Out-Null
         }

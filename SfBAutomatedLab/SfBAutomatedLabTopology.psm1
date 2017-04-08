@@ -286,6 +286,10 @@ function Get-SfBMachineRoleString
     {
         $roleString += 'Office2016'
     }
+    elseif ($Machine.DomainRole -eq 'Exchange2016')
+    {
+        $roleString += 'Exchange2016'
+    }
 
     if ($roleString)
     {

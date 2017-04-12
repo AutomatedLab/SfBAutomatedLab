@@ -101,7 +101,7 @@ function Get-SfBTopologyCluster
         [string[]]$Fqdn,
 
         [Parameter(ParameterSetName = 'ById')]
-        [guid[]]$Id
+        [string[]]$Id
     )
 
     process

@@ -33,7 +33,7 @@ function Start-SfBLabDeployment
 
     Write-Host
     Write-Host 'The AutomatedLab deployment script is ready. You can either invoke it right away or modify the script to further customize your lab.' -ForegroundColor Yellow
-    Write-Host "Do you want to start the deployment now? Type 'Y' to start the deplyment or any other key to stop this script: " -ForegroundColor Yellow -NoNewline
+    Write-Host "Do you want to start the deployment now? Type 'Y' to start the deployment or any other key to stop this script: " -ForegroundColor Yellow -NoNewline
     
     $startScript = if ($global:SfBALTestMode -eq 2)
     {
@@ -53,7 +53,7 @@ function Start-SfBLabDeployment
     }
     else
     {
-        Write-Host "OK, the AutomatedLab deplyment script is stored here: $scriptPath. You can call it whenever you want to start the lab deployment." -ForegroundColor Yellow
+        Write-Host "OK, the AutomatedLab deployment script is stored here: $scriptPath. You can call it whenever you want to start the lab deployment." -ForegroundColor Yellow
     }    
 }
 
@@ -106,7 +106,7 @@ function New-SfBLab
     }
     
     Write-Host '-------------------------------------------------------------'
-    Write-Host "Importing SfB topoligy file '$TopologyFilePath'"
+    Write-Host "Importing SfB topoloigy file '$TopologyFilePath'"
     Write-Host '-------------------------------------------------------------'
     
     Import-SfBTopology -Path $TopologyFilePath -ErrorAction Stop
@@ -294,7 +294,7 @@ function Install-SfBLabRequirements
 {
     if (-not (Get-Lab))
     {
-        Write-Error "Lab in not imported. Use 'Import-Lab' first"
+        Write-Error "Lab not imported. Use 'Import-Lab' first"
         return
     }
     if (-not $prerequisites) { $script:prerequisites = Get-SfBLabRequirements -ErrorAction Stop }
@@ -589,15 +589,24 @@ function Add-SfBLabInternalNetworks
 
     if (-not $internalNetworks)
     {
-        throw 'Something seems to be wring with the defined subnets. No internal network could be found. Please review the IP addresses and prefixes.'
+        Write-Host 'No IP addresses found in the topology to derive an IP network. AutomatedLab will auto-generate networks.'
     }
 
     Write-Host 'Defining the following networks'
     $i = 1
-    foreach ($network in $internalNetworks)
+    if ($internalNetworks)
     {
-        Write-Host (">> '{0}-{1}'. The host adapter's IP is {2}/{3}" -f $labName, $i, $network.Network, $network.Cidr)
-        $line = '$internal = Add-LabVirtualNetworkDefinition -Name "{0}-{1}" -AddressSpace {2}/{3} -PassThru' -f $labName, $i, $network.Network, $network.Cidr
+        foreach ($network in $internalNetworks)
+        {
+            Write-Host (">> '{0}-{1}'. The host adapter's IP is {2}/{3}" -f $labName, $i, $network.Network, $network.Cidr)
+            $line = '$internal = Add-LabVirtualNetworkDefinition -Name "{0}-{1}" -AddressSpace {2}/{3} -PassThru' -f $labName, $i, $network.Network, $network.Cidr
+            $sb.AppendLine($line) | Out-Null
+        }
+    }
+    else
+    {
+        Write-Host (">> '{0}-1'. The host adapter's IP is {1}/{2}" -f $labName, 'auto', 'auto')
+        $line = '$internal = Add-LabVirtualNetworkDefinition -Name "{0}-1" -PassThru' -f $labName
         $sb.AppendLine($line) | Out-Null
     }
     

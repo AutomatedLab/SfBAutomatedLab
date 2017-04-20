@@ -53,7 +53,7 @@ function Start-SfBLabDeployment
     }
     else
     {
-        Write-Host "OK, the AutomatedLab deployment script is stored here: $scriptPath. You can call it whenever you want to start the lab deployment." -ForegroundColor Yellow
+        Write-Host "OK, the AutomatedLab deployment script is stored here: $OutputScriptPath. You can call it whenever you want to start the lab deployment." -ForegroundColor Yellow
     }    
 }
 
@@ -257,7 +257,6 @@ function New-SfBLab
         $sb.AppendLine("Import-SfBTopology -Path '$((Get-SfBTopology).Path)'") | Out-Null
         
         $sb.AppendLine('Add-SfbClusterDnsRecords') | Out-Null
-        $sb.AppendLine('Add-SfBEdgeServerDnsRecords') | Out-Null		
 
         $sb.AppendLine('Add-SfbFileShares') | Out-Null
 
@@ -752,6 +751,11 @@ function Add-SfBLabDomains
             Read-Host -Prompt "How many Domain Controllers do you want to have for domain '$domain'?"
         }
         
+        if ($numberOfDcs -le 0)
+        {
+            $numberOfDcs = 1
+        }
+
         Write-Host "You have chosen $numberOfDcs domain controllers for domain '$domain'"
 
         foreach ($i in (1..$numberOfDcs))
@@ -795,6 +799,11 @@ function Add-SfBLabOfficeClients
         
         Write-Host "You have chosen $numberOfOfficeClients Office 2016 Clients to be added to domain '$domain'"
 
+        if ($numberOfOfficeClients -le 0)
+        {
+            continue
+        }
+
         foreach ($i in (1..$numberOfOfficeClients))
         {
             $fqdn = "Client$i.$($domain)"
@@ -830,7 +839,12 @@ function Add-SfBLabExchangeServers
             Read-Host -Prompt "How many Exchange 2016 Servers do you want to have in domain '$domain'?"
         }
         
-        Write-Host "You have chosen $numberOfExchangeServers Office 2016 Clients to be added to domain '$domain'"
+        Write-Host "You have chosen $numberOfExchangeServers Exchange 2016 servers to be added to domain '$domain'"
+
+        if ($numberOfExchangeServers -le 0)
+        {
+            continue
+        }
 
         foreach ($i in (1..$numberOfExchangeServers))
         {
@@ -1024,7 +1038,7 @@ function Set-SfBLabRequirements
     foreach ($requiredWindowsFix in $requiredWindowsFixes)
     {
         Write-Host "$requiredWindowsFix - " -NoNewline
-        $exists = (Get-ChildItem -Path $labSources -Filter $requiredWindowsFix -Recurse).FullName
+        $exists = (Get-ChildItem -Path $labSources -Filter $requiredWindowsFix -Recurse)[0].FullName
         
         if ($exists) { Write-Host 'ok' } else { Write-Host 'NOT FOUND';$isOneFixMissing = $true }
 

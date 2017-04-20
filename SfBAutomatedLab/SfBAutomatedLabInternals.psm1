@@ -1,5 +1,5 @@
 function Read-Choice
-{    
+{ 
     param(
         [Parameter(Mandatory)]
         [String[]]$ChoiceList, 
@@ -22,7 +22,7 @@ function Read-Choice
 }
 
 function Read-HashTable
-{    
+{ 
     param(
         [Parameter(Mandatory)]
         [String[]]$ChoiceList, 

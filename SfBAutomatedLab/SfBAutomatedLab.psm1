@@ -506,9 +506,11 @@ function Install-SfbLabSfbComponents
         } -ArgumentList $ca.CaPath -PassThru -NoDisplay
     }
 
-    # Enable monitoring
-    $monitoringUser = (Get-LabDomainDefinition | Where-Object -Property Name -eq $Machine.DomainName).Administrator.UserName
-    $monitoringPassword = (Get-LabDomainDefinition | Where-Object -Property Name -eq $Machine.DomainName).Administrator.Password
+    # Enable monitoring. Report deployment script can exclusively only work with domain\username.
+    # Neither domainfqdn\username, nor username@domainfqdn nor username work.
+    $monitoringUserDomain = ($1stFrontendServer.DomainName -split "\.")[0]
+    $monitoringUser = '{0}\{1}' -f $monitoringUserDomain, ($lab.Domains | Where-Object -Property Name -eq $1stFrontendServer.DomainName).Administrator.UserName
+    $monitoringPassword = ($lab.Domains | Where-Object -Property Name -eq $1stFrontendServer.DomainName).Administrator.Password
 
     Invoke-LabCommand -ActivityName 'Enabling monitoring on first frontend' -ComputerName $1stFrontendServer -ScriptBlock {
         param
@@ -542,7 +544,40 @@ function Install-SfbLabSfbComponents
 
         Set-CsQoEConfiguration -Identity 'global' -EnableQoE $true -Force -ErrorAction Stop
         Set-CsCdrConfiguration -Identity 'global' -EnableCDR $true -Force -ErrorAction Stop
-    } -ArgumentList $1stFrontendServer.InstallationUser.UserName, $1stFrontendServer.InstallationUser.Password, $firstDbServer.FQDN
+    } -ArgumentList $monitoringUser, $monitoringPassword, $firstDbServer.FQDN
+
+    # Enable Call Quality Dashboard
+    $cqdUrl = $PSCmdlet.MyInvocation.MyCommand.Module.PrivateData.DownloadUrls.CallQualityDashboard
+    $cqdPath = "$labSources\SoftwarePackages\CallQualityDashboard.msi"
+
+     Get-LabInternetFile -Uri $cqdUrl -Path $cqdPath
+
+    if(-not (Test-Path $cqdPath))
+    {
+        Write-Warning -Message ('Cannot enable Call Quality Dashboard on {0} because the download from {1} failed. Hint: Test if the download link is accessible and change it in the module private data ({2}) if not.' -f `
+            $firstDbServer.Name, $cqdUrl, (Join-Path $PSCmdlet.MyInvocation.MyCommand.Module.ModuleBase 'SfbAutomatedLab.psd1'))
+        return
+    }
+
+    # Build rather long command line for cqd
+    $cqdCommandLine = @(
+        'PORTAL_ARCHIVE_SERVER={0}' -f $firstDbServer.Name
+        'PORTAL_ANALYSIS_SERVER={0}' -f $firstDbServer.Name
+        'REPOSITORY_SQL_SERVER={0}' -f $firstDbServer.Name
+        'QOE_METRICS_SQL_SERVER={0}' -f $firstDbServer.Name
+        'CUBE_ANALYSIS_SERVER={0}' -f $firstDbServer.Name
+        'CUBE_ARCHIVE_SERVER={0}' -f $firstDbServer.Name
+        'FQDN={0}' -f $firstDbServer.FQDN
+        'ARCHIVE_SQL_SERVER={0}' -f $firstDbServer.Name
+        'IIS_APP_POOL_USER={0}' -f $monitoringUser
+        'IIS_APP_POOL_PASSWORD={0}' -f $monitoringPassword
+        'CUBE_USER={0}' -f $monitoringUser
+        'CUBE_PASSWORD={0}' -f $monitoringPassword
+        'ARCHIVE_SQL_AGENT_USER={0}' -f $monitoringUser
+        'ARCHIVE_SQL_AGENT_PASSWORD={0}' -f $monitoringPassword
+    )
+
+    Install-LabSoftwarePackage -Path $cqdPath -CommandLine ($cqdCommandLine -join ' ') -ComputerName $firstDbServer -AsJob -PassThru
 }
 
 function Start-SfbLabPool

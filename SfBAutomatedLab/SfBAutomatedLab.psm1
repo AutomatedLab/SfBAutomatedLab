@@ -507,6 +507,9 @@ function Install-SfbLabSfbComponents
     }
 
     # Enable monitoring
+    $monitoringUser = (Get-LabDomainDefinition | Where-Object -Property Name -eq $Machine.DomainName).Administrator.UserName
+    $monitoringPassword = (Get-LabDomainDefinition | Where-Object -Property Name -eq $Machine.DomainName).Administrator.Password
+
     Invoke-LabCommand -ActivityName 'Enabling monitoring on first frontend' -ComputerName $1stFrontendServer -ScriptBlock {
         param
         (
@@ -524,7 +527,7 @@ function Install-SfbLabSfbComponents
 
         try 
         {
-            & $deploymentScriptPath -storedUserName $UserName -storedPassword $Password -reportServerSqlInstance $SqlFqdn -monitoringDatabaseId "MonitoringDatabase:$sqlFqdn)"
+            & $deploymentScriptPath -storedUserName $UserName -storedPassword $Password -reportServerSqlInstance $SqlFqdn -monitoringDatabaseId "MonitoringDatabase:$sqlFqdn"
         }
         catch 
         {

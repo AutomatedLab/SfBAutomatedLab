@@ -505,6 +505,41 @@ function Install-SfbLabSfbComponents
             Set-CSCertificate -Identity Global -Type OAuthTokenIssuer -Thumbprint $cert.Thumbprint -Confirm:$false -Report C:\Set-CSCertificateOAuth.html
         } -ArgumentList $ca.CaPath -PassThru -NoDisplay
     }
+
+    # Enable monitoring
+    Invoke-LabCommand -ActivityName 'Enabling monitoring on first frontend' -ComputerName $1stFrontendServer -ScriptBlock {
+        param
+        (
+            $UserName,
+            $Password,
+            $SqlFqdn
+        )
+
+        $deploymentScriptPath = Join-Path -Path $env:ProgramFiles -ChildPath 'Skype for Business Server 2015\Deployment\Setup\DeployReports.ps1'
+        if (-not (Test-Path $deploymentScriptPath))
+        {
+            Write-Error -Message ('Monitoring reports could not be deployed because the script DeployReports.ps1 did not exist on {0}' -f $env:COMPUTERNAME)
+            exit
+        }
+
+        try 
+        {
+            & $deploymentScriptPath -storedUserName $UserName -storedPassword $Password -reportServerSqlInstance $SqlFqdn -monitoringDatabaseId "MonitoringDatabase:$sqlFqdn)"
+        }
+        catch 
+        {
+            throw $_
+        }
+
+        $reportingConfiguration = (Get-CsReportingConfiguration -ErrorAction SilentlyContinue).ReportingUrl
+        if (-not $reportingConfiguration)
+        {
+            throw 'Reporting configuration could not be found. Enabling monitoring and reporting has not been successful'
+        }
+
+        Set-CsQoEConfiguration -Identity 'global' -EnableQoE $true -Force -ErrorAction Stop
+        Set-CsCdrConfiguration -Identity 'global' -EnableCDR $true -Force -ErrorAction Stop
+    } -ArgumentList $1stFrontendServer.InstallationUser.UserName, $1stFrontendServer.InstallationUser.Password, $firstDbServer.FQDN
 }
 
 function Start-SfbLabPool

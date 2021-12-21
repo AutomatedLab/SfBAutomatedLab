@@ -209,9 +209,9 @@ function New-SfBLab
             }
 
             $os = if ($machine.IsClient)
-            { $PSCmdlet.MyInvocation.MyCommand.Module.PrivateData.OS.Client }
+            { $(Get-Module SfbAutomatedLab).PrivateData.OS.Client }
             else
-            { $PSCmdlet.MyInvocation.MyCommand.Module.PrivateData.OS.Server }
+            { $(Get-Module SfbAutomatedLab).PrivateData.OS.Server }
 
             if (($machine.Roles -band [SfBAutomatedLab.SfBServerRole]::Edge) -eq [SfBAutomatedLab.SfBServerRole]::Edge)
             {
@@ -298,9 +298,9 @@ function Install-SfBLabRequirements
     }
     if (-not $prerequisites) { $script:prerequisites = Get-SfBLabRequirements -ErrorAction Stop }
     
-    $frontendServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*FrontEnd*' }
-    $edgeServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*Edge*' }
-    $wacServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*WacService*' }
+    $frontendServers = Get-LabVm | Where-Object { $_.Notes.SfBRoles -like '*FrontEnd*' }
+    $edgeServers = Get-LabVm | Where-Object { $_.Notes.SfBRoles -like '*Edge*' }
+    $wacServers = Get-LabVm | Where-Object { $_.Notes.SfBRoles -like '*WacService*' }
     
     Write-Host "Installing required features on Frontend Servers"
     Install-LabWindowsFeature -ComputerName $frontendServers -FeatureName NET-Framework-Core, RSAT-ADDS, Windows-Identity-Foundation, Web-Server, Web-Static-Content, Web-Default-Doc, Web-Http-Errors, Web-Dir-Browsing, Web-Asp-Net, Web-Net-Ext, Web-ISAPI-Ext, Web-ISAPI-Filter, Web-Http-Logging, Web-Log-Libraries, Web-Request-Monitor, Web-Http-Tracing, Web-Basic-Auth, Web-Windows-Auth, Web-Client-Auth, Web-Filtering, Web-Stat-Compression, Web-Dyn-Compression, NET-WCF-HTTP-Activation45, Web-Asp-Net45, Web-Mgmt-Tools, Web-Scripting-Tools, Web-Mgmt-Compat, Server-Media-Foundation, BITS -NoDisplay
@@ -334,7 +334,7 @@ function Install-SfBLabRequirements
     
     Write-Host 'Installing SilverLight on Frontend and Edge Servers...'
     
-    $silverLightDownloadUrl = $PSCmdlet.MyInvocation.MyCommand.Module.PrivateData.DownloadUrls.SilverLight
+    $silverLightDownloadUrl = $(Get-Module SfbAutomatedLab).PrivateData.DownloadUrls['SilverLight']
     $silverLightPath = "$labSources\SoftwarePackages\Silverlight_x64.exe"
     Get-LabInternetFile -Uri $silverLightDownloadUrl -Path $silverLightPath
     
@@ -351,7 +351,7 @@ function Install-SfBLabRequirements
     Dismount-LabIsoImage -ComputerName $wacServers -SupressOutput
     
     Write-Host "Installing .net 3.5 on all lab machines"
-    $machines = Get-LabMachine
+    $machines = Get-LabVm
     Install-LabWindowsFeature -ComputerName $machines -FeatureName NET-Framework-Features -IncludeAllSubFeature -AsJob -PassThru | Wait-Job | Out-Null
 }
 
@@ -364,7 +364,7 @@ function Install-SfBLabActiveDirectory
     }
     if (-not $prerequisites) { $script:prerequisites = Get-SfBLabRequirements -ErrorAction Stop }
     
-    $rootDc = Get-LabMachine -Role RootDC
+    $rootDc = Get-LabVm -Role RootDC
     
     Write-Host "Installing SfB Management Tools on '$rootDc'"
     $drive = Mount-LabIsoImage -ComputerName $rootDc -IsoPath $prerequisites.ISOs.SfB2015Iso -PassThru -SupressOutput
@@ -404,8 +404,8 @@ function Install-SfbLabSfbComponents
     if (-not $prerequisites) { $script:prerequisites = Get-SfBLabRequirements -ErrorAction Stop }
     
     $lab = Get-Lab
-    $frontEndServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*frontend*' }
-    $databaseServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*SqlServer*'} | Sort-Object -Property Name
+    $frontEndServers = Get-LabVm | Where-Object { $_.Notes.SfBRoles -like '*frontend*' }
+    $databaseServers = Get-LabVm | Where-Object { $_.Notes.SfBRoles -like '*SqlServer*'} | Sort-Object -Property Name
     $1stFrontendServer = $frontEndServers | Select-Object -First 1
     $firstDbServer = $databaseServers | Select-Object -First 1
 
@@ -547,7 +547,7 @@ function Install-SfbLabSfbComponents
     } -ArgumentList $monitoringUser, $monitoringPassword, $firstDbServer.FQDN
 
     # Enable Call Quality Dashboard
-    $cqdUrl = $PSCmdlet.MyInvocation.MyCommand.Module.PrivateData.DownloadUrls.CallQualityDashboard
+    $cqdUrl = $(Get-Module SfbAutomatedLab).PrivateData.DownloadUrls.CallQualityDashboard
     $cqdPath = "$labSources\SoftwarePackages\CallQualityDashboard.msi"
 
      Get-LabInternetFile -Uri $cqdUrl -Path $cqdPath
@@ -555,7 +555,7 @@ function Install-SfbLabSfbComponents
     if(-not (Test-Path $cqdPath))
     {
         Write-Warning -Message ('Cannot enable Call Quality Dashboard on {0} because the download from {1} failed. Hint: Test if the download link is accessible and change it in the module private data ({2}) if not.' -f `
-            $firstDbServer.Name, $cqdUrl, (Join-Path $PSCmdlet.MyInvocation.MyCommand.Module.ModuleBase 'SfbAutomatedLab.psd1'))
+            $firstDbServer.Name, $cqdUrl, (Join-Path $(Get-Module SfbAutomatedLab).ModuleBase 'SfbAutomatedLab.psd1'))
         return
     }
 
@@ -592,7 +592,7 @@ function Start-SfbLabPool
     
     Import-SfBTopology -Path $lab.Notes.SfBTopologyPath
 
-    $frontendServers = Get-LabMachine | Where-Object { $_.Notes.SfBRoles -like '*frontend*' }
+    $frontendServers = Get-LabVm | Where-Object { $_.Notes.SfBRoles -like '*frontend*' }
     $1stFrontendServer = $frontendServers | Select-Object -First 1
     $frontendPool = Get-SfBTopologyCluster | Where-Object { ($_ | Get-SfBTopologyClusterService).RoleName -eq 'UserServices' }
     
@@ -962,12 +962,12 @@ function Add-SfBClusterDnsRecords
         $clusterMachines = $cluster | Get-SfBTopologyMachine
         $clusterName = $cluster.Fqdn.Substring(0, $cluster.Fqdn.IndexOf('.'))
         $clusterDnsZone = $cluster.Fqdn.Substring($cluster.Fqdn.IndexOf('.') + 1)
-        $dc = Get-LabMachine -Role RootDC | Where-Object DomainName -eq $clusterDnsZone
+        $dc = Get-LabVm -Role RootDC | Where-Object DomainName -eq $clusterDnsZone
 
         foreach ($clusterMachine in $clusterMachines)
         {
             $name = $clusterMachine.Fqdn.Substring(0, $clusterMachine.Fqdn.IndexOf('.'))
-            $labMachine = Get-LabMachine -ComputerName $name
+            $labMachine = Get-LabVm -ComputerName $name
 
             $dnsCmd = 'Add-DnsServerResourceRecord -Name {0} -ZoneName {1} -IPv4Address {2} -A' -f $clusterName, $clusterDnsZone, $labMachine.IpV4Address
 
@@ -983,7 +983,7 @@ function Add-SfBEdgeServerDnsRecords
     foreach ($edgeServer in ($edgeServers | Where-Object { $_.NetInterface.InterfaceSide -eq 'Internal' }))
     {
         $domainName = $edgeServer.Fqdn.Substring($edgeServer.Fqdn.IndexOf('.') + 1)
-        $dc = Get-LabMachine -Role RootDC | Where-Object DomainName -eq $domainName
+        $dc = Get-LabVm -Role RootDC | Where-Object DomainName -eq $domainName
         $name = $edgeServer.Fqdn.Substring(0, $edgeServer.Fqdn.IndexOf('.'))
         $ipAddress = $edgeServers[0].NetInterface | Where-Object InterfaceSide -eq Internal | Select-Object -ExpandProperty IPAddress
         
@@ -1052,8 +1052,8 @@ function Set-SfBLabRequirements
 
     $labSources = Get-LabSourcesLocation
     
-    $requiredIsos = $PSCmdlet.MyInvocation.MyCommand.Module.PrivateData.RequiredIsos
-    $requiredWindowsFixes = $PSCmdlet.MyInvocation.MyCommand.Module.PrivateData.RequiredWindowsFixes
+    $requiredIsos = $(Get-Module SfbAutomatedLab).PrivateData.RequiredIsos
+    $requiredWindowsFixes = $(Get-Module SfbAutomatedLab).PrivateData.RequiredWindowsFixes
     
     $type = Get-Type -GenericType AutomatedLab.DictionaryXmlStore -T String, (Get-Type -GenericType AutomatedLab.SerializableDictionary -T string,string)
     
@@ -1111,9 +1111,24 @@ function Set-SfBLabRequirements
     foreach ($requiredWindowsFix in $requiredWindowsFixes)
     {
         Write-Host "$requiredWindowsFix - " -NoNewline
-        $exists = (Get-ChildItem -Path $labSources -Filter $requiredWindowsFix -Recurse)[0].FullName
+        $exists = (Get-ChildItem -Path $labSources -Filter $requiredWindowsFix -Recurse | Select-Object -First 1).FullName
         
-        if ($exists) { Write-Host 'ok' } else { Write-Host 'NOT FOUND';$isOneFixMissing = $true }
+        if ($exists)
+        {
+            Write-Host 'ok'
+        }
+        else
+        {
+            try
+            {
+                $exists = (Get-LabInternetFile -Uri $(Get-Module SfbAutomatedLab).PrivateData.DownloadUrls[$requiredWindowsFix] -Path $labSources\OSUpdates -PassThru -ErrorAction Stop -NoDisplay).FullName
+                Write-Host 'ok'
+            }
+            catch
+            {
+                Write-Host 'NOT FOUND';$isOneFixMissing = $true
+            }
+        }
 
         $fixes.Add($requiredWindowsFix, $exists)
     }
